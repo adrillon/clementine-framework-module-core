@@ -49,8 +49,8 @@ class coreDebugHelper extends coreDebugHelper_Parent
     {
         if (__DEBUGABLE__ && Clementine::$config['clementine_debug']['display_errors']) {
             $request = $this->getRequest();
-            $action = $request->ACT . 'Action';
-            $msg = "Erreur 404 : pas de methode " . $request->CTRL . "->" . "$action()";
+            $action = $request['ACT'] . 'Action';
+            $msg = "Erreur 404 : pas de methode " . $request['CTRL'] . "->" . "$action()";
             $this->trigger_error($msg, E_USER_WARNING);
         }
     }
@@ -67,7 +67,7 @@ class coreDebugHelper extends coreDebugHelper_Parent
     {
         if (__DEBUGABLE__ && Clementine::$config['clementine_debug']['display_errors']) {
             $request = $this->getRequest();
-            $msg = "Erreur 404 : impossible de charger le controleur " . $request->CTRL;
+            $msg = "Erreur 404 : impossible de charger le controleur " . $request['CTRL'];
             $this->trigger_error($msg, E_USER_WARNING, -1);
         }
     }
@@ -80,7 +80,7 @@ class coreDebugHelper extends coreDebugHelper_Parent
             } else {
                 $request = $this->getRequest();
                 if (!$path) {
-                    $path = $request->CTRL . '/' . $request->ACT;
+                    $path = $request['CTRL'] . '/' . $request['ACT'];
                 }
                 $this->trigger_error("Erreur 404 : la page " . $path . " est introuvable ou a renvoye une erreur", E_USER_WARNING, -1);
             }
