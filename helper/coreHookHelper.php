@@ -12,12 +12,12 @@ class coreHookHelper extends coreHookHelper_Parent
 {
 
     /**
-     * before_request : fonction appelee avant de remplir l'objet $request
+     * before_first_getRequest : fonction appelee avant le premier appel a getRequest()
      * 
      * @access public
      * @return void
      */
-    function before_request($request)
+    function before_first_getRequest()
     {
     }
 
