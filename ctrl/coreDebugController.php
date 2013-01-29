@@ -1,23 +1,19 @@
 <?php
 /**
- * coreDebugHelper 
+ * coreDebugController 
  * 
- * @uses coreDebugHelper_Parent
+ * @uses coreDebugController_Parent
  * @package core
  * @version $id$
  * @copyright 
  * @author Pierre-Alexis <pa@quai13.com> 
  * @license 
  */
-class coreDebugHelper extends coreDebugHelper_Parent
+class coreDebugController extends coreDebugController_Parent
 {
 
     public function trigger_error($error_msg, $error_type = E_USER_NOTICE, $backtrace_depth = 3)
     {
-        // older PHP compatibility
-        if (!defined('E_USER_DEPRECATED')) {
-            define('E_USER_DEPRECATED', 16384);
-        }
         $errtypes = array(E_USER_DEPRECATED => 'deprecated',
                           E_USER_NOTICE     => 'notice',
                           E_USER_WARNING    => 'warning',
@@ -49,8 +45,8 @@ class coreDebugHelper extends coreDebugHelper_Parent
     {
         if (__DEBUGABLE__ && Clementine::$config['clementine_debug']['display_errors']) {
             $request = $this->getRequest();
-            $action = $request->ACT . 'Action';
-            $msg = "Erreur 404 : pas de methode " . $request->CTRL . "->" . "$action()";
+            $action = $request['ACT'] . 'Action';
+            $msg = "Erreur 404 : pas de methode " . $request['CTRL'] . "->" . "$action()";
             $this->trigger_error($msg, E_USER_WARNING);
         }
     }
@@ -67,7 +63,7 @@ class coreDebugHelper extends coreDebugHelper_Parent
     {
         if (__DEBUGABLE__ && Clementine::$config['clementine_debug']['display_errors']) {
             $request = $this->getRequest();
-            $msg = "Erreur 404 : impossible de charger le controleur " . $request->CTRL;
+            $msg = "Erreur 404 : impossible de charger le controleur " . $request['CTRL'];
             $this->trigger_error($msg, E_USER_WARNING, -1);
         }
     }
@@ -76,11 +72,11 @@ class coreDebugHelper extends coreDebugHelper_Parent
     {
         if (__DEBUGABLE__ && Clementine::$config['clementine_debug']['display_errors']) {
             if ($path) {
-                $this->trigger_error("Erreur 404 : le bloc " . $path . " est introuvable ou a renvoye une erreur", E_USER_WARNING);
+                $this->trigger_error("Erreur 404 : le bloc " . $path . " est introuvable ou a renvoye une erreur", E_USER_WARNING, -1);
             } else {
                 $request = $this->getRequest();
                 if (!$path) {
-                    $path = $request->CTRL . '/' . $request->ACT;
+                    $path = $request['CTRL'] . '/' . $request['ACT'];
                 }
                 $this->trigger_error("Erreur 404 : la page " . $path . " est introuvable ou a renvoye une erreur", E_USER_WARNING, -1);
             }
@@ -111,48 +107,21 @@ class coreDebugHelper extends coreDebugHelper_Parent
         }
     }
 
-    public function memoryUsage()
-    {
-        if (Clementine::$config['clementine_debug']['memory_usage']) {
-            if (version_compare(PHP_VERSION, '5.2.0') >= 0) {
-                $size = memory_get_peak_usage();
-            } else {
-                $size = memory_get_usage();
-            }
-            $unites = array('b','k','m','g','t','p','e');
-            $unite = strtolower(substr(preg_replace('/[0-9]*/', '', $size), 0, 1));
-            if (!$unite) {
-                $unite = 'b';
-            }
-            $i = floor(log($size, 1000));
-            if (isset($unites[$i])) {
-                $unite = $unites[$i];
-                $memory_usage = $size / pow(1000, ($i));
-            } else {
-                $memory_usage = $size;
-            }
-            $memory_usage = number_format($memory_usage, 3, ',', ' ');
-            if (version_compare(PHP_VERSION, '5.2.0') >= 0) {
-                Clementine::$clementine_debug[] = 'Memory peak usage : ' . $memory_usage . ' ' . $unite;
-            } else {
-                Clementine::$clementine_debug[] = 'Memory usage : ' . $memory_usage . ' ' . $unite;
-            }
-        }
-    }
-
     public function generationTime($mvc_generation_begin, $mvc_generation_end)
     {
         if (Clementine::$config['clementine_debug']['generation_time']) {
             $mvc_generation_time = number_format(1000 * ($mvc_generation_end - $mvc_generation_begin), 0, ',', ' ');
             Clementine::$clementine_debug[] = 'Generation time : ' . $mvc_generation_time . ' ms';
         }
+        $this->debug();
     }
 
     public function debugHook($hookname, $was_called)
     {
         if (__DEBUGABLE__ && Clementine::$config['clementine_debug']['hook']) {
+            $ctrl = $this->getController('hook');
             $i = 50;
-            $tmp = 'HookHelper';
+            $tmp = get_class($ctrl);
             $hooks_stack = array($tmp);
             $hooks_files_stack = array();
             for (; $parent = get_parent_class($tmp); $tmp = $parent) {
@@ -202,7 +171,7 @@ class coreDebugHelper extends coreDebugHelper_Parent
             }
             if (strlen($basetxt)) {
                 $txt = $basetxt;
-                if ($ignores['is_ignored']) {
+                if (in_array($module, $ignores)) {
                     $txt = ' <div style="color: #F00; ">' . $module . ' ignoré <br />' . $basetxt . '</div>';
                 }
                 Clementine::$register['clementine_debug']['block_files_stack'][] = $txt;
@@ -227,18 +196,6 @@ class coreDebugHelper extends coreDebugHelper_Parent
             // affiche dans le tableau $this->debug l'ordre de surcharge pour ce block
             Clementine::$clementine_debug['block'][] = '<strong>' . $scope . '/' . $module . ' &gt; ' . implode('/', $path_array) . '</strong><br />' . implode("<br />", Clementine::$register['clementine_debug']['block_files_stack']);
         }
-    }
-
-    public function getControllerFromBlock()
-    {
-        $msg = 'les appels à getController depuis un bloc sont interdits';
-        $this->trigger_error($msg, E_USER_ERROR, 2);
-    }
-
-    public function getControllerFromModel()
-    {
-        $msg = 'les appels à getController depuis un modèle sont interdits';
-        $this->trigger_error($msg, E_USER_ERROR, 2);
     }
 
 

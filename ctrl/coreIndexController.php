@@ -19,7 +19,7 @@ class coreIndexController extends coreIndexController_Parent
      * @access public
      * @return void
      */
-    public function indexAction($request)
+    public function indexAction()
     {
         /*
          * $this->data est accessible en tant que $data dans les blocks
