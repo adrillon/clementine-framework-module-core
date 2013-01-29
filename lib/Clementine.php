@@ -18,7 +18,6 @@ class Clementine
     // variables utilisees pour que les modules puissent enregistrer dans un endroit centralisé des données
     static public $register = array();
     static private $_register = array(
-        '_handled_errors'             => 0,
         '_parent_loaded_blocks'       => array(),
         '_parent_loaded_blocks_files' => array(),
         '_forbid_getcontroller' => 0);
@@ -851,7 +850,7 @@ class Clementine
         // charge la config
         $config = $this->_get_config();
         // definit les constantes necessaires au fonctionnement de l'adoption
-        $adopters = array('model', 'view', 'controller', 'helper');
+        $adopters = array('model', 'view', 'controller');
         foreach ($adopters as $adopter) {
             if (isset($config['clementine_inherit_' . $adopter]) && is_array($config['clementine_inherit_' . $adopter])) {
                 foreach ($config['clementine_inherit_' . $adopter] as $classname => $parentclassname) {
@@ -861,28 +860,11 @@ class Clementine
         }
         if (isset($config['clementine_inherit_config']) && is_array($config['clementine_inherit_config'])) {
             foreach ($config['clementine_inherit_config'] as $module => $parentmodule) {
-                define('__clementine_config_' . strtoupper($module) . '_extends__', $parentmodule . '_config');
+                define('__CLEMENTINE_CONFIG_' . strtoupper($module) . '_EXTENDS__', $parentmodule . '_CONFIG');
                 if (!isset($config['module_' . $module])) {
                     $config['module_' . $module] = array();
                 }
                 $config['module_' . $module] = array_merge($config['module_' . $parentmodule], $config['module_' . $module]);
-            }
-        }
-        // adoption sur model, view, controller, helper et config si demande dans clementine_inherit et pas déjà défini dans un clementine_inherit_*
-        if (isset($config['clementine_inherit']) && is_array($config['clementine_inherit'])) {
-            foreach ($config['clementine_inherit'] as $classname => $parentclassname) {
-                foreach ($adopters as $adopter) {
-                    if (!defined('__CLEMENTINE_CLASS_' . strtoupper($classname) . '_' . strtoupper($adopter) . '_EXTENDS__')) {
-                        define('__CLEMENTINE_CLASS_' . strtoupper($classname) . '_' . strtoupper($adopter) . '_EXTENDS__', ucfirst($parentclassname) . ucfirst($adopter));
-                    }
-                }
-                if (!isset($config['clementine_inherit_config'][$classname])) {
-                    define('__clementine_config_' . strtoupper($classname) . '_extends__', $parentclassname . '_config');
-                    if (!isset($config['module_' . $classname])) {
-                        $config['module_' . $classname] = array();
-                    }
-                    $config['module_' . $classname] = array_merge($config['module_' . $parentclassname], $config['module_' . $classname]);
-                }
             }
         }
         // valeurs par défaut et calcul de variables de configuration si elles n'ont pas deja ete definies
@@ -967,15 +949,12 @@ class Clementine
             define('__DEBUGABLE__', '0');
         }
         // modifications du comportement de PHP selon la configuration choisie
-        ini_set('display_errors', 0);
-        ini_set('log_errors', 0);
-        error_reporting(0);
-        $error_reporting = eval('return (' . Clementine::$config['clementine_debug']['error_reporting'] . ');');
-        if (Clementine::$config['clementine_debug']['error_log']) {
-            ini_set('error_log', Clementine::$config['clementine_debug']['error_log']);
+        if (__DEBUGABLE__ && Clementine::$config['clementine_debug']['display_errors']) {
+            ini_set('display_errors', 'on');
+            error_reporting(E_ALL);
+        } else {
+            ini_set('display_errors', 'off');
         }
-        set_error_handler(array('Clementine', 'clementine_error_handler'), $error_reporting);
-        register_shutdown_function(array('Clementine', 'clementine_shutdown_handler'));
         // definit la langue par defaut
         $lang_dispos = array();
         if (isset($config['clementine_global']['lang'])) {
@@ -1286,143 +1265,6 @@ class Clementine
         }
         return false;
     }
-
-    /**
-     * clementine_error_handler : handle php errors (display, send by mail...)
-     * 
-     * @param mixed $errno 
-     * @param mixed $errstr 
-     * @param mixed $errfile 
-     * @param mixed $errline 
-     * @access public
-     * @return void
-     */
-    public static function clementine_error_handler($errno, $errstr, $errfile, $errline)
-    {
-        ++Clementine::$_register['_handled_errors'];
-        $fatal = 0;
-        $error_content = "$errstr <em>in</em> <code>$errfile:$errline</code> <br />\n<br />\n";
-        $error_content_log = "$errstr in $errfile:$errline";
-        switch ($errno) {
-            case E_ERROR:
-                $error_type = 'Error';
-                $fatal = 1;
-                break;
-            case E_WARNING:
-                $error_type = 'Warning';
-                break;
-            case E_PARSE:
-                $error_type = 'Parse error';
-                $fatal = 1;
-                break;
-            case E_NOTICE:
-                $error_type = 'Notice';
-                break;
-            case E_CORE_ERROR:
-                $error_type = 'Core error';
-                $fatal = 1;
-                break;
-            case E_CORE_WARNING:
-                $error_type = 'Core warning';
-                break;
-            case E_COMPILE_ERROR:
-                $error_type = 'Compile error';
-                $fatal = 1;
-                break;
-            case E_COMPILE_WARNING:
-                $error_type = 'Compile warning';
-                break;
-            case E_USER_ERROR:
-                $error_type = 'User error';
-                $fatal = 1;
-                break;
-            case E_USER_WARNING:
-                $error_type = 'User warning';
-                break;
-            case E_USER_NOTICE:
-                $error_type = 'User notice';
-                break;
-            case E_STRICT:
-                $error_type = 'Strict';
-                break;
-            case E_RECOVERABLE_ERROR:
-                $error_type = 'Recoverable error';
-                break;
-            case E_DEPRECATED:
-                $error_type = 'Deprecated';
-                break;
-            case E_USER_DEPRECATED:
-                $error_type = 'User deprecated';
-                break;
-            case E_ALL:
-                $error_type = 'Unspecified error';
-                $fatal = 1;
-                break;
-            default:
-                $error_type = 'Unknown error';
-                $fatal = 1;
-                break;
-        }
-        $display_error  = '<strong>#' . Clementine::$_register['_handled_errors'] . ' ' . $error_type . ': </strong>';
-        $display_error_log      = '#' . Clementine::$_register['_handled_errors'] . ' ' . $error_type . ': ';
-        $display_error .= $error_content;
-        $display_error_log .= $error_content_log;
-        if (__DEBUGABLE__ && Clementine::$config['clementine_debug']['display_errors']) {
-            echo $display_error;
-        }
-        if (Clementine::$config['clementine_debug']['send_errors_by_email'] &&
-            Clementine::$config['clementine_debug']['send_errors_by_email_max'] &&
-            Clementine::$_register['_handled_errors'] <= Clementine::$config['clementine_debug']['send_errors_by_email_max']) {
-            // BUILD MESSAGE BODY
-            $request_dump = htmlentities(print_r(Clementine::$register['request'], true), ENT_QUOTES, __PHP_ENCODING__);
-            $debug_message  = $display_error;
-            $debug_message .= '<strong>Request dump: </strong>';
-            $debug_message .= '<pre>' . $request_dump . '</pre>';
-            // MIME BOUNDARY
-            $mime_boundary = "---- " . md5(time());
-            // MAIL HEADERS
-            $headers  = 'From: "' . Clementine::$config['clementine_global']['email_exp'] . "\n";
-            $headers .= "MIME-Version: 1.0\n";
-            $headers .= "Content-Type: multipart/alternative; boundary=\"$mime_boundary\"\n";
-            // TEXT EMAIL PART
-            $message = "\n--$mime_boundary\n";
-            $message .= "Content-Type: text/plain; charset=" . __PHP_ENCODING__ . "\n";
-            $message .= "Content-Transfer-Encoding: 8bit\n\n";
-            $message .= html_entity_decode(strip_tags($debug_message), ENT_QUOTES, __PHP_ENCODING__);
-            // HTML EMAIL PART
-            $message .= "\n--$mime_boundary\n";
-            $message .= "Content-Type: text/html; charset=" . __PHP_ENCODING__ . "\n";
-            $message .= "Content-Transfer-Encoding: 8bit\n\n";
-            $message .= "<html>\n";
-            $message .= "<body>\n";
-            $message .= $debug_message;
-            $message .= "</body>\n";
-            $message .= "</html>\n";
-            // FINAL BOUNDARY
-            $message .= "\n--$mime_boundary--\n\n";
-            // SEND MAIL
-            @mail(
-                Clementine::$config['clementine_global']['email_dev'],
-                Clementine::$config['clementine_global']['site_name'] . ': Error (' . $error_type . ') ',
-                $message,
-                $headers
-            );
-        }
-        if (Clementine::$config['clementine_debug']['log_errors']) {
-            error_log($display_error_log);
-        }
-        if ($fatal) {
-            die();
-        }
-    }
-
-    public static function clementine_shutdown_handler()
-    {
-        $error = error_get_last();
-        if ($error !== null && ($error['type'] & (E_ERROR | E_USER_ERROR | E_PARSE | E_CORE_ERROR | E_COMPILE_ERROR | E_RECOVERABLE_ERROR))) {
-            Clementine::clementine_error_handler($error['type'], $error['message'], $error['file'], $error['line']);
-        }
-    }
 }
 
 class ClementineRequest
@@ -1461,8 +1303,6 @@ class ClementineRequest
         if (isset($_SERVER['REQUEST_METHOD']) && isset($this->allowed_request_methods[$_SERVER['REQUEST_METHOD']])) {
             $this->METHOD = $_SERVER['REQUEST_METHOD'];
         }
-        $this->REMOTE_ADDR = $_SERVER['REMOTE_ADDR'];
-        $this->DATE = date('Y-m-d H:i:s', $_SERVER['REQUEST_TIME']);
         // populate request
         if (get_magic_quotes_gpc()) {
             $this->GET = $this->stripslashesRecursive($_GET);
@@ -1643,12 +1483,8 @@ class ClementineRequest
         $r = $this->ifSetGet($params);
         if (!get_magic_quotes_gpc()) {
             if ($params['type'] == 'array') {
-                if (is_array($r)) {
-                    foreach ($r as $subkey => $val) {
-                        $r[$subkey] = addslashes($r[$subkey]);
-                    }
-                } else {
-                    $r = array();
+                foreach ($r as $subkey => $val) {
+                    $r[$subkey] = addslashes($r[$subkey]);
                 }
             } else {
                 $r = addslashes($r);
@@ -1661,12 +1497,8 @@ class ClementineRequest
             $r = preg_replace('@<script[^>]*?>.*?</script>@si', '', $r);
         } else {
             if ($params['type'] == 'array') {
-                if (is_array($r)) {
-                    foreach ($r as $subkey => $val) {
-                        $r[$subkey] = htmlentities(stripslashes($r[$subkey]), ENT_QUOTES, __PHP_ENCODING__);
-                    }
-                } else {
-                    $r = array();
+                foreach ($r as $subkey => $val) {
+                    $r[$subkey] = htmlentities(stripslashes($r[$subkey]), ENT_QUOTES, __PHP_ENCODING__);
                 }
             } else {
                 $r = htmlentities(stripslashes($r), ENT_QUOTES, __PHP_ENCODING__);
