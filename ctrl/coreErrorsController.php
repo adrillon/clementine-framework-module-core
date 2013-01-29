@@ -18,7 +18,7 @@ class coreErrorsController extends coreErrorsController_Parent
      * @access public
      * @return void
      */
-    public function err404Action($request)
+    public function err404Action()
     {
     }
 
