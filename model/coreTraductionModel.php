@@ -22,7 +22,7 @@ class coreTraductionModel extends coreTraductionModel_Parent
         $db = $this->getModel('db');
         $request = $this->getRequest();
         $sql  = 'SELECT texte FROM clementine_traduction ';
-        $sql .= 'WHERE lang = \'' .  $request->LANG . '\' ';
+        $sql .= 'WHERE lang = \'' .  $request['LANG'] . '\' ';
         $sql .= 'AND str = \'' . $db->escape_string($text) . '\' ';
         $sql .= 'LIMIT 1';
         $stmt = $db->query($sql);
@@ -53,7 +53,7 @@ class coreTraductionModel extends coreTraductionModel_Parent
         $request = $this->getRequest();
         $db = $this->getModel('db');
         $sql  = 'SELECT texte FROM clementine_traduction_contenu ';
-        $sql .= 'WHERE lang = \'' . $db->escape_string($request->LANG) . '\' ';
+        $sql .= 'WHERE lang = \'' . $db->escape_string($request['LANG']) . '\' ';
         $sql .= 'AND orig_table = \'' . $db->escape_string($orig_table) . '\' ';
         $sql .= 'AND orig_field = \'' . $db->escape_string($orig_field) . '\' ';
         $sql .= 'AND orig_id = \'' . $db->escape_string($orig_id) . '\' ';
