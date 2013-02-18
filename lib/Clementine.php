@@ -996,6 +996,9 @@ class Clementine
         ini_set('session.use_trans_sid', 0);
         // contre le duplicate content : on ne passe jamais l'id de session dans l'url
         ini_set('session.use_only_cookies', 1);
+        ini_set('session.gc_divisor', Clementine::$config['clementine_global']['gc_divisor']);
+        ini_set('session.gc_probability', Clementine::$config['clementine_global']['gc_probability']);
+        ini_set('session.gc_maxlifetime', Clementine::$config['clementine_global']['gc_maxlifetime']);
         // locale de PHP
         setlocale(LC_ALL, Clementine::$config['clementine_global']['locale_LC_ALL']);
         setlocale(LC_COLLATE, Clementine::$config['clementine_global']['locale_LC_COLLATE']);
@@ -1375,9 +1378,13 @@ class Clementine
             Clementine::$_register['_handled_errors'] <= Clementine::$config['clementine_debug']['send_errors_by_email_max']) {
             // BUILD MESSAGE BODY
             $request_dump = htmlentities(print_r(Clementine::$register['request'], true), ENT_QUOTES, __PHP_ENCODING__);
+            $debug_backtrace = htmlentities(print_r(debug_backtrace(), true), ENT_QUOTES, __PHP_ENCODING__);
             $debug_message  = $display_error;
             $debug_message .= '<strong>Request dump: </strong>';
             $debug_message .= '<pre>' . $request_dump . '</pre>';
+            $debug_message .= '<br />';
+            $debug_message .= '<strong>Debug_backtrace: </strong>';
+            $debug_message .= '<pre>' . $debug_backtrace . '</pre>';
             // MIME BOUNDARY
             $mime_boundary = "---- " . md5(time());
             // MAIL HEADERS
