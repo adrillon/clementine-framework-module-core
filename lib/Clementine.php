@@ -34,7 +34,7 @@ class Clementine
     public function __call($name, $args)
     {
         $call_parent = 0;
-        $trace = debug_backtrace();
+        $trace = debug_backtrace(false);
         // verifie si la fonction est appelee au moyen de parent::
         if (isset($trace[1]) && isset($trace[2]) && isset($trace[1]['class']) && isset($trace[1]['function']) && isset($trace[2]['class']) && isset($trace[2]['function'])) {
             if ((strtolower($trace[1]['function']) == strtolower($trace[2]['function'])) && (strtolower(get_parent_class($trace[2]['class'])) == strtolower($trace[1]['class']))) {
@@ -1378,11 +1378,15 @@ class Clementine
             Clementine::$_register['_handled_errors'] <= Clementine::$config['clementine_debug']['send_errors_by_email_max']) {
             // BUILD MESSAGE BODY
             $request_dump = htmlentities(print_r(Clementine::$register['request'], true), ENT_QUOTES, __PHP_ENCODING__);
-            $debug_backtrace = htmlentities(print_r(debug_backtrace(), true), ENT_QUOTES, __PHP_ENCODING__);
+            $server_dump = htmlentities(print_r($_SERVER, true), ENT_QUOTES, __PHP_ENCODING__);
+            $debug_backtrace = htmlentities(print_r(debug_backtrace(false), true), ENT_QUOTES, __PHP_ENCODING__);
             $debug_message  = $display_error;
             $debug_message .= '<strong>Request dump: </strong>';
             $debug_message .= '<pre>' . $request_dump . '</pre>';
-            $debug_message .= '<br />';
+            $debug_message .= '<hr />';
+            $debug_message .= '<strong>Server dump: </strong>';
+            $debug_message .= '<pre>' . $server_dump . '</pre>';
+            $debug_message .= '<hr />';
             $debug_message .= '<strong>Debug_backtrace: </strong>';
             $debug_message .= '<pre>' . $debug_backtrace . '</pre>';
             // MIME BOUNDARY
@@ -1567,7 +1571,7 @@ class ClementineRequest
                 }
             }
         } elseif (__DEBUGABLE__ && Clementine::$config['clementine_debug']['display_errors']) {
-            $backtrace = debug_backtrace();
+            $backtrace = debug_backtrace(false);
             $errfile = $backtrace[0]['file'];
             $errline = $backtrace[0]['line'];
             echo "<br />\n" . '<strong>Clementine warning</strong>: map_url() must be called before getRequest() in <strong>' . $errfile . '</strong> on line <strong>' . $errline . '</strong>' . "<br />\n";
