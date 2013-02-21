@@ -1304,11 +1304,18 @@ class Clementine
     {
         ++Clementine::$_register['_handled_errors'];
         $fatal = 0;
-        $error_content = "$errstr <em>in</em> <code>$errfile:$errline</code> <br />\n<br />\n";
-        $error_content_log = "$errstr in $errfile:$errline";
+        $error_content = "$errstr";
+        $error_content_log = "$errstr";
+        if ($errfile) {
+            $error_content .= " <em>in</em> <code>$errfile:$errline</code>";
+            $error_content_log .= " in $errfile:$errline";
+        }
+        $error_content .= "<br />\n<br />\n";
+        $backtrace_flags = DEBUG_BACKTRACE_IGNORE_ARGS;
         switch ($errno) {
             case E_ERROR:
                 $error_type = 'Error';
+                $backtrace_flags = 0;
                 $fatal = 1;
                 break;
             case E_WARNING:
@@ -1316,6 +1323,7 @@ class Clementine
                 break;
             case E_PARSE:
                 $error_type = 'Parse error';
+                $backtrace_flags = 0;
                 $fatal = 1;
                 break;
             case E_NOTICE:
@@ -1379,10 +1387,6 @@ class Clementine
             // BUILD MESSAGE BODY
             $request_dump = htmlentities(print_r(Clementine::$register['request'], true), ENT_QUOTES, __PHP_ENCODING__);
             $server_dump = htmlentities(print_r($_SERVER, true), ENT_QUOTES, __PHP_ENCODING__);
-            $backtrace_flags = DEBUG_BACKTRACE_IGNORE_ARGS;
-            if ($fatal) {
-                $backtrace_flags = DEBUG_BACKTRACE_PROVIDE_OBJECT;
-            }
             $debug_backtrace = htmlentities(print_r(debug_backtrace($backtrace_flags), true), ENT_QUOTES, __PHP_ENCODING__);
             $debug_message  = $display_error;
             $debug_message .= '<strong>Request dump: </strong>';

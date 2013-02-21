@@ -23,6 +23,8 @@ class coreDebugHelper extends coreDebugHelper_Parent
                           E_USER_WARNING    => 'warning',
                           E_USER_ERROR      => 'fatal error');
         $errfileline = '';
+        $errfile = '';
+        $errline = '';
         if ($backtrace_depth >= 0) {
             $backtrace = debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS);
             $errfile = $backtrace[$backtrace_depth]['file'];
@@ -33,8 +35,13 @@ class coreDebugHelper extends coreDebugHelper_Parent
         if (isset($errtypes[$error_type])) {
             $errtype = $errtypes[$error_type];
         }
-        if (__DEBUGABLE__) {
-            echo "<br />\n" . '<strong>Clementine ' . $errtypes[$error_type] . '</strong>: ' . $error_msg . $errfileline . "<br />\n";
+        if (__DEBUGABLE__ || (
+                Clementine::$config['clementine_debug']['send_errors_by_email'] &&
+                Clementine::$config['clementine_debug']['send_errors_by_email_max'] &&
+                Clementine::$_register['_handled_errors'] <= Clementine::$config['clementine_debug']['send_errors_by_email_max']
+            )
+        ) {
+            Clementine::clementine_error_handler($error_type, $error_msg, $errfile, $errline);
         }
         if ($error_type == E_USER_ERROR) {
             die();
