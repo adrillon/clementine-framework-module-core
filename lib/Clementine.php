@@ -34,7 +34,7 @@ class Clementine
     public function __call($name, $args)
     {
         $call_parent = 0;
-        $trace = debug_backtrace(false);
+        $trace = debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS);
         // verifie si la fonction est appelee au moyen de parent::
         if (isset($trace[1]) && isset($trace[2]) && isset($trace[1]['class']) && isset($trace[1]['function']) && isset($trace[2]['class']) && isset($trace[2]['function'])) {
             if ((strtolower($trace[1]['function']) == strtolower($trace[2]['function'])) && (strtolower(get_parent_class($trace[2]['class'])) == strtolower($trace[1]['class']))) {
@@ -810,13 +810,6 @@ class Clementine
      */
     public function getCurrentModule()
     {
-        /*$backtrace = debug_backtrace();*/
-        /*$file = $backtrace[0]['file']; */
-        /*if ($file == __FILES_ROOT__ . '/app/share/core/lib/Clementine.php') {*/
-            /*error_log('interneeee');*/
-            /*$file = $backtrace[1]['file']; */
-        /*}*/
-        /*return preg_replace('@/.*@', '', substr($file, strlen(__FILES_ROOT__ . '/app/...../')));*/
         $module = '';
         $class = get_class($this);
         $types = array('Controller', 'Model', 'Helper');
@@ -850,6 +843,13 @@ class Clementine
     {
         // charge la config
         $config = $this->_get_config();
+        // qq constantes
+        if (!defined('DEBUG_BACKTRACE_IGNORE_ARGS')) {
+            define('DEBUG_BACKTRACE_IGNORE_ARGS', 0);
+        }
+        if (!defined('DEBUG_BACKTRACE_PROVIDE_OBJECT')) {
+            define('DEBUG_BACKTRACE_PROVIDE_OBJECT', 0);
+        }
         // definit les constantes necessaires au fonctionnement de l'adoption
         $adopters = array('model', 'view', 'controller', 'helper');
         foreach ($adopters as $adopter) {
@@ -1379,7 +1379,11 @@ class Clementine
             // BUILD MESSAGE BODY
             $request_dump = htmlentities(print_r(Clementine::$register['request'], true), ENT_QUOTES, __PHP_ENCODING__);
             $server_dump = htmlentities(print_r($_SERVER, true), ENT_QUOTES, __PHP_ENCODING__);
-            $debug_backtrace = htmlentities(print_r(debug_backtrace(false), true), ENT_QUOTES, __PHP_ENCODING__);
+            $backtrace_flags = DEBUG_BACKTRACE_IGNORE_ARGS;
+            if ($fatal) {
+                $backtrace_flags = DEBUG_BACKTRACE_PROVIDE_OBJECT;
+            }
+            $debug_backtrace = htmlentities(print_r(debug_backtrace($backtrace_flags), true), ENT_QUOTES, __PHP_ENCODING__);
             $debug_message  = $display_error;
             $debug_message .= '<strong>Request dump: </strong>';
             $debug_message .= '<pre>' . $request_dump . '</pre>';
@@ -1571,7 +1575,7 @@ class ClementineRequest
                 }
             }
         } elseif (__DEBUGABLE__ && Clementine::$config['clementine_debug']['display_errors']) {
-            $backtrace = debug_backtrace(false);
+            $backtrace = debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS);
             $errfile = $backtrace[0]['file'];
             $errline = $backtrace[0]['line'];
             echo "<br />\n" . '<strong>Clementine warning</strong>: map_url() must be called before getRequest() in <strong>' . $errfile . '</strong> on line <strong>' . $errline . '</strong>' . "<br />\n";

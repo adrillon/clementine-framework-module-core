@@ -24,7 +24,7 @@ class coreDebugHelper extends coreDebugHelper_Parent
                           E_USER_ERROR      => 'fatal error');
         $errfileline = '';
         if ($backtrace_depth >= 0) {
-            $backtrace = debug_backtrace(false);
+            $backtrace = debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS);
             $errfile = $backtrace[$backtrace_depth]['file'];
             $errline = $backtrace[$backtrace_depth]['line'];
             $errfileline = ' in <strong>' . $errfile . '</strong> on line <strong>' . $errline . '</strong>';
@@ -163,7 +163,7 @@ class coreDebugHelper extends coreDebugHelper_Parent
             }
             $hooks_stack = array_reverse($hooks_stack);
             array_shift($hooks_stack);
-            $backtrace = debug_backtrace(false);
+            $backtrace = debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS);
             if (!isset(Clementine::$clementine_debug['hook'][$hookname])) {
                 Clementine::$clementine_debug['hook'][$hookname][] = '<strong>$this->hook(\'' . $hookname . '\')' . '</strong> ' . ($was_called ? '(est actif)' : '') . ' <br />' . implode(' &gt; ', $hooks_stack) . '->' . $hookname . '() ';
             }
@@ -185,7 +185,7 @@ class coreDebugHelper extends coreDebugHelper_Parent
     public function debugBlock_register_stack($scope, $module, $path, $file, $ignores, $load_parent)
     {
         if (__DEBUGABLE__ && (Clementine::$config['clementine_debug']['block'] || Clementine::$config['clementine_debug']['block_label'])) {
-            $backtrace = debug_backtrace(false);
+            $backtrace = debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS);
             if (__DEBUGABLE__ && Clementine::$config['clementine_debug']['block_label']) {
                 echo '<span class="Clementine_debug_block" style="margin: -5px; border: solid #FF6600 5px; padding: 5px; -moz-border-radius: 5px; background-color: #F80; color: #FFF; opacity: 0.2; position: absolute; font-size: 12px; line-height: 1.4em; z-index: 9998; " onmouseover="this.style.opacity=1; this.style.zIndex=9999; " onmouseout="this.style.opacity=0.2; this.style.zIndex=9998; ">';
                 echo '<strong>' . $scope . '/' . $module . ' &gt; ' . $path . '</strong><br />';
