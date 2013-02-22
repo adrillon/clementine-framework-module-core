@@ -97,7 +97,7 @@ class Clementine
                     header($_SERVER['SERVER_PROTOCOL'] . ' 404 Not Found', true);
                     $erreur_404 = 1;
                     if (__DEBUGABLE__) {
-                        $debug->err404_noSuchMethod();
+                        $debug->err404_noSuchMethod(1);
                     }
                 }
             } else {
@@ -122,7 +122,7 @@ class Clementine
         // si erreur 404, on charge un autre controleur
         if ($erreur_404) {
             if (__DEBUGABLE__) {
-                $debug->err404_noSuchBlock();
+                $debug->err404_noSuchBlock(null, 1);
             }
             $this->trigger404();
         }
@@ -1312,6 +1312,7 @@ class Clementine
         }
         $error_content .= "<br />\n<br />\n";
         $backtrace_flags = DEBUG_BACKTRACE_IGNORE_ARGS;
+        $nomail = 0;
         switch ($errno) {
             case E_ERROR:
                 $error_type = 'Error';
@@ -1347,8 +1348,13 @@ class Clementine
                 $error_type = 'User error';
                 $fatal = 1;
                 break;
+            case 'E_USER_WARNING_NOMAIL':
             case E_USER_WARNING:
                 $error_type = 'User warning';
+                if ($errno == 'E_USER_WARNING_NOMAIL') {
+                    $errno == E_USER_WARNING;
+                    $nomail = 1;
+                }
                 break;
             case E_USER_NOTICE:
                 $error_type = 'User notice';
@@ -1380,8 +1386,27 @@ class Clementine
         $display_error_log .= $error_content_log;
         if (__DEBUGABLE__ && Clementine::$config['clementine_debug']['display_errors']) {
             echo $display_error;
+            if ($errfile && $errline) {
+                $content = file($errfile);
+                $from = max(0, $errline - 5);
+                $content = array_slice($content, $from, 10);
+                echo '<pre style="background: #EEE; border: 2px solid #333; border-radius: 5px; padding: 1em; margin: 1em; text-align: left; font-family: Courier New; font-size: 13px; line-height: 1.4em;  ">';
+                $nb = ($from + 1);
+                foreach ($content as $line) {
+                    if ($nb == $errline) {
+                        echo '<strong>';
+                    }
+                    echo str_pad($nb, 2, '0', STR_PAD_LEFT) . htmlentities('    ' . $line, ENT_QUOTES, __PHP_ENCODING__);
+                    if ($nb == $errline) {
+                        echo '</strong>';
+                    }
+                    ++$nb;
+                }
+                echo '</pre>';
+            }
         }
-        if (Clementine::$config['clementine_debug']['send_errors_by_email'] &&
+        if (!$nomail &&
+            Clementine::$config['clementine_debug']['send_errors_by_email'] &&
             Clementine::$config['clementine_debug']['send_errors_by_email_max'] &&
             Clementine::$_register['_handled_errors'] <= Clementine::$config['clementine_debug']['send_errors_by_email_max']) {
             // BUILD MESSAGE BODY
