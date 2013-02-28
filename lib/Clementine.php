@@ -1302,6 +1302,7 @@ class Clementine
      */
     public static function clementine_error_handler($errno, $errstr, $errfile, $errline)
     {
+        // TODO: rendre surchargeable l'affichage
         ++Clementine::$_register['_handled_errors'];
         $fatal = 0;
         $error_content = "$errstr";
@@ -1310,7 +1311,7 @@ class Clementine
             $error_content .= " <em>in</em> <code>$errfile:$errline</code>";
             $error_content_log .= " in $errfile:$errline";
         }
-        $error_content .= "<br />\n<br />\n";
+        $error_content .= "<br />\n";
         $backtrace_flags = DEBUG_BACKTRACE_IGNORE_ARGS;
         $nomail = 0;
         switch ($errno) {
@@ -1380,48 +1381,56 @@ class Clementine
                 $fatal = 1;
                 break;
         }
-        $display_error  = '<strong>#' . Clementine::$_register['_handled_errors'] . ' ' . $error_type . ': </strong>';
+        // TODO: les onclick et les styles inline c'est pas terrible mais c'est autonome... trouver une meilleure solution
+        $prestyle = 'background: #EEE; border: 2px solid #333; border-radius: 5px; padding: 1em; margin: 1em; text-align: left; font-family: Courier New; font-size: 13px; line-height: 1.4em; ';
+        $strongstyle = 'cursor: pointer; background: #999999; border: 1px solid #555555; border-radius: 1em 1em 1em 1em; box-shadow: 1px 3px 4px rgba(64, 64, 64, 0.3); color: #FFFFFF; font-size: 10px; font-weight: bold; padding: 0.3em 1em; text-shadow: 0 1px 1px #000000; display: inline-block; margin: 0 0 5px; ';
+        $togglepre = 'onclick="var elt = this.nextSibling; var current_display = (elt.currentStyle ? elt.currentStyle[\'display\'] : document.defaultView.getComputedStyle(elt,null).getPropertyValue(\'display\')); elt.style.display = (current_display != \'none\' ? \'none\' : \'block\'); "';
+        $display_error  = '<br /><strong style="' . $strongstyle . '; background-color: #666666; " ' . $togglepre .'>#' . Clementine::$_register['_handled_errors'] . ' ' . $error_type . '</strong><div>';
         $display_error_log      = '#' . Clementine::$_register['_handled_errors'] . ' ' . $error_type . ': ';
         $display_error .= $error_content;
         $display_error_log .= $error_content_log;
-        if (__DEBUGABLE__ && Clementine::$config['clementine_debug']['display_errors']) {
-            echo $display_error;
-            if ($errfile && $errline) {
-                $content = file($errfile);
-                $from = max(0, $errline - 5);
-                $content = array_slice($content, $from, 10);
-                echo '<pre style="background: #EEE; border: 2px solid #333; border-radius: 5px; padding: 1em; margin: 1em; text-align: left; font-family: Courier New; font-size: 13px; line-height: 1.4em;  ">';
-                $nb = ($from + 1);
-                foreach ($content as $line) {
-                    if ($nb == $errline) {
-                        echo '<strong>';
-                    }
-                    echo str_pad($nb, 2, '0', STR_PAD_LEFT) . htmlentities('    ' . $line, ENT_QUOTES, __PHP_ENCODING__);
-                    if ($nb == $errline) {
-                        echo '</strong>';
-                    }
-                    ++$nb;
+        $debug_message  = $display_error;
+        if ($errfile && $errline) {
+            $content = file($errfile);
+            $from = max(0, $errline - 5);
+            $content = array_slice($content, $from, 10);
+            $debug_message .= '<pre style="' . $prestyle . '">';
+            $nb = ($from + 1);
+            foreach ($content as $line) {
+                if ($nb == $errline) {
+                    $debug_message .= '<strong>';
                 }
-                echo '</pre>';
+                $debug_message .= str_pad($nb, 2, '0', STR_PAD_LEFT) . htmlentities('    ' . $line, ENT_QUOTES, __PHP_ENCODING__);
+                if ($nb == $errline) {
+                    $debug_message .= '</strong>';
+                }
+                ++$nb;
             }
+            $debug_message .= '</pre>';
+        }
+        $debug_message .= '</div>';
+        $request_dump = htmlentities(print_r(Clementine::$register['request'], true), ENT_QUOTES, __PHP_ENCODING__);
+        $server_dump = htmlentities(print_r($_SERVER, true), ENT_QUOTES, __PHP_ENCODING__);
+        $debug_backtrace = htmlentities(print_r(debug_backtrace($backtrace_flags), true), ENT_QUOTES, __PHP_ENCODING__);
+        $debug_message .= '<strong style="' . $strongstyle . '" ' . $togglepre . '>Request dump</strong>';
+        $debug_message .= '<pre class="clementine_error_handler_error" style="' . $prestyle . '">' . $request_dump . '</pre>';
+        $debug_message .= '<strong style="' . $strongstyle . '" ' . $togglepre . '>Server dump</strong>';
+        $debug_message .= '<pre class="clementine_error_handler_error" style="' . $prestyle . '">' . $server_dump . '</pre>';
+        $debug_message .= '<strong style="' . $strongstyle . '" ' . $togglepre . '>Debug_backtrace</strong>';
+        $debug_message .= '<pre class="clementine_error_handler_error" style="' . $prestyle . '">' . $debug_backtrace . '</pre>';
+        if (__DEBUGABLE__ && Clementine::$config['clementine_debug']['display_errors']) {
+            echo '<style type="text/css">
+                .clementine_error_handler_error {
+                    display: none;
+                }
+            </style>';
+            echo $debug_message;
         }
         if (!$nomail &&
             Clementine::$config['clementine_debug']['send_errors_by_email'] &&
             Clementine::$config['clementine_debug']['send_errors_by_email_max'] &&
             Clementine::$_register['_handled_errors'] <= Clementine::$config['clementine_debug']['send_errors_by_email_max']) {
             // BUILD MESSAGE BODY
-            $request_dump = htmlentities(print_r(Clementine::$register['request'], true), ENT_QUOTES, __PHP_ENCODING__);
-            $server_dump = htmlentities(print_r($_SERVER, true), ENT_QUOTES, __PHP_ENCODING__);
-            $debug_backtrace = htmlentities(print_r(debug_backtrace($backtrace_flags), true), ENT_QUOTES, __PHP_ENCODING__);
-            $debug_message  = $display_error;
-            $debug_message .= '<strong>Request dump: </strong>';
-            $debug_message .= '<pre>' . $request_dump . '</pre>';
-            $debug_message .= '<hr />';
-            $debug_message .= '<strong>Server dump: </strong>';
-            $debug_message .= '<pre>' . $server_dump . '</pre>';
-            $debug_message .= '<hr />';
-            $debug_message .= '<strong>Debug_backtrace: </strong>';
-            $debug_message .= '<pre>' . $debug_backtrace . '</pre>';
             // MIME BOUNDARY
             $mime_boundary = "---- " . md5(time());
             // MAIL HEADERS
