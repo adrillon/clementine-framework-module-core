@@ -1391,27 +1391,32 @@ class Clementine
         $display_error_log .= $error_content_log;
         $debug_message  = $display_error;
         if ($errfile && $errline) {
-            $content = file($errfile);
-            $from = max(0, $errline - 5);
+            $highlighed_content = highlight_string(file_get_contents($errfile), true);
+            $highlighed_content = preg_replace('@<br /></span>@', '</span><br />' . PHP_EOL, $highlighed_content);
+            $content = explode('<br />', $highlighed_content);
+            $from = max(0, $errline - 7);
             $content = array_slice($content, $from, 10);
-            $debug_message .= '<pre style="' . $prestyle . '">';
+            $prestyle = 'background: #FFF; border: 2px solid #333; border-radius: 5px; padding: 1em; margin: 1em; text-align: left; font-family: Courier New; font-size: 13px; line-height: 1.4em; overflow: auto; white-space: nowrap; ';
+            $display_error .= '<pre style="' . $prestyle . '">';
             $nb = ($from + 1);
             foreach ($content as $line) {
                 if ($nb == $errline) {
-                    $debug_message .= '<strong>';
+                    $display_error .= '<strong>';
                 }
-                $debug_message .= str_pad($nb, 2, '0', STR_PAD_LEFT) . htmlentities('    ' . $line, ENT_QUOTES, __PHP_ENCODING__);
+                $display_error .= str_pad($nb, 2, '0', STR_PAD_LEFT) . '    ' . '<span>' .  $line . '</span>';
                 if ($nb == $errline) {
-                    $debug_message .= '</strong>';
+                    $display_error .= '</strong>';
                 }
+                $display_error .= '<br />' . PHP_EOL;
                 ++$nb;
             }
-            $debug_message .= '</pre>';
+            $display_error .= '</pre>';
         }
         $debug_message .= '</div>';
-        $request_dump = htmlentities(print_r(Clementine::$register['request'], true), ENT_QUOTES, __PHP_ENCODING__);
-        $server_dump = htmlentities(print_r($_SERVER, true), ENT_QUOTES, __PHP_ENCODING__);
-        $debug_backtrace = htmlentities(print_r(debug_backtrace($backtrace_flags), true), ENT_QUOTES, __PHP_ENCODING__);
+        $request_dump    = highlight_string('<?php' . PHP_EOL . print_r(Clementine::$register['request'], true) . PHP_EOL . '?>', true);
+        $server_dump     = highlight_string('<?php' . PHP_EOL . print_r($_SERVER, true) . PHP_EOL . '?>', true);
+        $debug_backtrace = highlight_string('<?php' . PHP_EOL . print_r(debug_backtrace($backtrace_flags), true) . PHP_EOL . '?>', true);
+        $debug_message  = $display_error;
         $debug_message .= '<strong style="' . $strongstyle . '" ' . $togglepre . '>Request dump</strong>';
         $debug_message .= '<pre class="clementine_error_handler_error" style="' . $prestyle . '">' . $request_dump . '</pre>';
         $debug_message .= '<strong style="' . $strongstyle . '" ' . $togglepre . '>Server dump</strong>';
