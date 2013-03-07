@@ -997,7 +997,12 @@ class Clementine
         // contre le duplicate content : on ne passe jamais l'id de session dans l'url
         ini_set('session.use_only_cookies', 1);
         ini_set('session.gc_divisor', Clementine::$config['clementine_global']['gc_divisor']);
-        ini_set('session.gc_probability', Clementine::$config['clementine_global']['gc_probability']);
+        // selon appel CLI, pas de garbage collection
+        if (isset($_SERVER['SERVER_NAME'])) {
+            ini_set('session.gc_probability', 0);
+        } else {
+            ini_set('session.gc_probability', Clementine::$config['clementine_global']['gc_probability']);
+        }
         ini_set('session.gc_maxlifetime', Clementine::$config['clementine_global']['gc_maxlifetime']);
         // locale de PHP
         setlocale(LC_ALL, Clementine::$config['clementine_global']['locale_LC_ALL']);
@@ -1413,9 +1418,9 @@ class Clementine
             $display_error .= '</pre>';
         }
         $debug_message .= '</div>';
-        $request_dump    = highlight_string('<?php' . PHP_EOL . print_r(Clementine::$register['request'], true) . PHP_EOL . '?>', true);
-        $server_dump     = highlight_string('<?php' . PHP_EOL . print_r($_SERVER, true) . PHP_EOL . '?>', true);
-        $debug_backtrace = highlight_string('<?php' . PHP_EOL . print_r(debug_backtrace($backtrace_flags), true) . PHP_EOL . '?>', true);
+        $request_dump    = highlight_string('<?php' . PHP_EOL . preg_replace("/ => " . PHP_EOL . " *array *\(/S", ' => array(', var_export(Clementine::$register['request'], true)) . PHP_EOL . '?>', true);
+        $server_dump     = highlight_string('<?php' . PHP_EOL . preg_replace("/ => " . PHP_EOL . " *array *\(/S", ' => array(', var_export($_SERVER, true)) . PHP_EOL . '?>', true);
+        $debug_backtrace = highlight_string('<?php' . PHP_EOL . preg_replace("/ => " . PHP_EOL . " *array *\(/S", ' => array(', var_export(debug_backtrace($backtrace_flags), true)) . PHP_EOL . '?>', true);
         $debug_message  = $display_error;
         $debug_message .= '<strong style="' . $strongstyle . '" ' . $togglepre . '>Request dump</strong>';
         $debug_message .= '<pre class="clementine_error_handler_error" style="' . $prestyle . '">' . $request_dump . '</pre>';
