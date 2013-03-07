@@ -44,7 +44,7 @@ class Clementine
         }
         if (!$call_parent) {
             if (!defined('__DEBUGABLE__') || __DEBUGABLE__) {
-                echo "<br />\n" . '<strong>Clementine fatal error</strong>: Call to undefined method ' . $trace[1]['class'] . '::' . $name . ' in ' . $trace[1]['file'] . ' on line ' . $trace[1]['line'];
+                Clementine::$register['clementine_debug_helper']->trigger_error("Call to undefined method", E_USER_ERROR, 2);
             }
             die();
         }
@@ -998,7 +998,7 @@ class Clementine
         ini_set('session.use_only_cookies', 1);
         ini_set('session.gc_divisor', Clementine::$config['clementine_global']['gc_divisor']);
         // selon appel CLI, pas de garbage collection
-        if (isset($_SERVER['SERVER_NAME'])) {
+        if (!isset($_SERVER['SERVER_NAME'])) {
             ini_set('session.gc_probability', 0);
         } else {
             ini_set('session.gc_probability', Clementine::$config['clementine_global']['gc_probability']);
