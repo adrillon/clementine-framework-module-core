@@ -1004,6 +1004,8 @@ class Clementine
             ini_set('session.gc_probability', Clementine::$config['clementine_global']['gc_probability']);
         }
         ini_set('session.gc_maxlifetime', Clementine::$config['clementine_global']['gc_maxlifetime']);
+        // timezone
+        ini_set('date.timezone', Clementine::$config['clementine_global']['date_timezone']);
         // locale de PHP
         setlocale(LC_ALL, Clementine::$config['clementine_global']['locale_LC_ALL']);
         setlocale(LC_COLLATE, Clementine::$config['clementine_global']['locale_LC_COLLATE']);
