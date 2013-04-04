@@ -1392,11 +1392,10 @@ class Clementine
         $prestyle = 'background: #EEE; border: 2px solid #333; border-radius: 5px; padding: 1em; margin: 1em; text-align: left; font-family: Courier New; font-size: 13px; line-height: 1.4em; ';
         $strongstyle = 'cursor: pointer; background: #999999; border: 1px solid #555555; border-radius: 1em 1em 1em 1em; box-shadow: 1px 3px 4px rgba(64, 64, 64, 0.3); color: #FFFFFF; font-size: 10px; font-weight: bold; padding: 0.3em 1em; text-shadow: 0 1px 1px #000000; display: inline-block; margin: 0 0 5px; ';
         $togglepre = 'onclick="var elt = this.nextSibling; var current_display = (elt.currentStyle ? elt.currentStyle[\'display\'] : document.defaultView.getComputedStyle(elt,null).getPropertyValue(\'display\')); elt.style.display = (current_display != \'none\' ? \'none\' : \'block\'); "';
-        $display_error  = '<br /><strong style="' . $strongstyle . '; background-color: #666666; " ' . $togglepre .'>#' . Clementine::$_register['_handled_errors'] . ' ' . $error_type . '</strong><div>';
+        $display_error  = '<br /><strong style="' . $strongstyle . '; background-color: #666666; " ' . $togglepre .'>#' . Clementine::$_register['_handled_errors'] . ' ' . $error_type . '</strong><div style="position: relative; z-index: 999; background-color: #FFFFFF; ">';
         $display_error_log      = '#' . Clementine::$_register['_handled_errors'] . ' ' . $error_type . ': ';
         $display_error .= $error_content;
         $display_error_log .= $error_content_log;
-        $debug_message  = $display_error;
         if ($errfile && $errline) {
             $highlighed_content = highlight_string(file_get_contents($errfile), true);
             $highlighed_content = preg_replace('@<br /></span>@', '</span><br />' . PHP_EOL, $highlighed_content);
@@ -1419,10 +1418,10 @@ class Clementine
             }
             $display_error .= '</pre>';
         }
-        $debug_message .= '</div>';
-        $request_dump    = highlight_string('<?php' . PHP_EOL . preg_replace("/ => " . PHP_EOL . " *array *\(/S", ' => array(', var_export(Clementine::$register['request'], true)) . PHP_EOL . '?>', true);
-        $server_dump     = highlight_string('<?php' . PHP_EOL . preg_replace("/ => " . PHP_EOL . " *array *\(/S", ' => array(', var_export($_SERVER, true)) . PHP_EOL . '?>', true);
-        $debug_backtrace = highlight_string('<?php' . PHP_EOL . preg_replace("/ => " . PHP_EOL . " *array *\(/S", ' => array(', var_export(debug_backtrace($backtrace_flags), true)) . PHP_EOL . '?>', true);
+        $debug_message  = $display_error;
+        $request_dump    = Clementine::dump(Clementine::$register['request'], true);
+        $server_dump     = Clementine::dump($_SERVER, true);
+        $debug_backtrace = Clementine::dump(debug_backtrace($backtrace_flags), true);
         $debug_message  = $display_error;
         $debug_message .= '<strong style="' . $strongstyle . '" ' . $togglepre . '>Request dump</strong>';
         $debug_message .= '<pre class="clementine_error_handler_error" style="' . $prestyle . '">' . $request_dump . '</pre>';
@@ -1430,6 +1429,7 @@ class Clementine
         $debug_message .= '<pre class="clementine_error_handler_error" style="' . $prestyle . '">' . $server_dump . '</pre>';
         $debug_message .= '<strong style="' . $strongstyle . '" ' . $togglepre . '>Debug_backtrace</strong>';
         $debug_message .= '<pre class="clementine_error_handler_error" style="' . $prestyle . '">' . $debug_backtrace . '</pre>';
+        $debug_message .= '</div>';
         if (__DEBUGABLE__ && Clementine::$config['clementine_debug']['display_errors']) {
             echo '<style type="text/css">
                 .clementine_error_handler_error {
@@ -1488,6 +1488,27 @@ class Clementine
             Clementine::clementine_error_handler($error['type'], $error['message'], $error['file'], $error['line']);
         }
     }
+
+    /**
+     * dump : prints developer-readable information about a variable ;)
+     * 
+     * @param mixed $expression 
+     * @param mixed $return 
+     * @static
+     * @access public
+     * @return void
+     */
+    public static function dump($expression, $return = false)
+    {
+        $dump = highlight_string('<?php' . PHP_EOL . preg_replace("/ => " . PHP_EOL . " *array *\(/S", ' => array(', var_export($expression, true)) . PHP_EOL . '?>', true);
+        $dump = str_replace('<span style="color: #0000BB">&lt;?php<br />', '<span style="color: #0000BB">', $dump);
+        $dump = str_replace('<span style="color: #0000BB">?&gt;', '<span style="color: #0000BB">', $dump);
+        if (!$return) {
+            echo $dump;
+        }
+        return $dump;
+    }
+
 }
 
 class ClementineRequest
