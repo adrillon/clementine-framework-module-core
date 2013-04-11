@@ -60,10 +60,10 @@ class Clementine
     {
         $mvc_generation_begin = microtime(true);
         $erreur_404 = 0;
+        $this->apply_config();
         // (nécessaire pour map_url() qu'on appelle depuis le hook before_request) : initialise Clementine::$register['request']
         // avant même le premier getRequest(), et supprime les slashes rajoutes par magic_quotes_gpc
         Clementine::$register['request'] = new ClementineRequest();
-        $this->apply_config();
         if (__DEBUGABLE__) {
             $debug = $this->getHelper('debug');
             Clementine::$register['clementine_debug_helper'] = $debug;
@@ -344,6 +344,7 @@ class Clementine
             $request->GET = Clementine::$register['request']->GET;
             $request->POST = Clementine::$register['request']->POST;
             $request->COOKIE = Clementine::$register['request']->COOKIE;
+            $request->SESSION = Clementine::$register['request']->SESSION;
             $request->REQUEST = Clementine::$register['request']->REQUEST;
             $request->METHOD = Clementine::$register['request']->METHOD;
             Clementine::$register['request'] = $request;
@@ -969,7 +970,7 @@ class Clementine
         // modifications du comportement de PHP selon la configuration choisie
         ini_set('display_errors', 0);
         ini_set('log_errors', 0);
-        error_reporting(0);
+        // error_reporting(0);
         $error_reporting = eval('return (' . Clementine::$config['clementine_debug']['error_reporting'] . ');');
         if (Clementine::$config['clementine_debug']['error_log']) {
             ini_set('error_log', Clementine::$config['clementine_debug']['error_log']);
@@ -1309,11 +1310,20 @@ class Clementine
      */
     public static function clementine_error_handler($errno, $errstr, $errfile, $errline)
     {
+        if (0 == error_reporting ()) {
+            // error reporting is currently turned off or suppressed with @
+            return false;
+        }
         // TODO: rendre surchargeable l'affichage
         ++Clementine::$_register['_handled_errors'];
         $fatal = 0;
-        $error_content = "$errstr";
-        $error_content_log = "$errstr";
+        if (is_array($errstr)) {
+            $errmsg = implode('<br />' . PHP_EOL, $errstr);
+        } else {
+            $errmsg = $errstr;
+        }
+        $error_content = "$errmsg";
+        $error_content_log = "$errmsg";
         if ($errfile) {
             $error_content .= " <em>in</em> <code>$errfile:$errline</code>";
             $error_content_log .= " in $errfile:$errline";
@@ -1479,6 +1489,7 @@ class Clementine
         if ($fatal) {
             die();
         }
+        return true;
     }
 
     public static function clementine_shutdown_handler()
@@ -1550,15 +1561,20 @@ class ClementineRequest
         $this->REMOTE_ADDR = $_SERVER['REMOTE_ADDR'];
         $this->DATE = date('Y-m-d H:i:s', $_SERVER['REQUEST_TIME']);
         // populate request
+        if (!session_id()) {
+            session_start();
+        }
         if (get_magic_quotes_gpc()) {
             $this->GET = $this->stripslashesRecursive($_GET);
             $this->POST = $this->stripslashesRecursive($_POST);
             $this->COOKIE = $this->stripslashesRecursive($_COOKIE);
+            $this->SESSION = $this->stripslashesRecursive($_SESSION);
             $this->REQUEST = $this->stripslashesRecursive($_REQUEST);
         } else {
             $this->GET = $_GET;
             $this->POST = $_POST;
             $this->COOKIE = $_COOKIE;
+            $this->SESSION = $_SESSION;
             $this->REQUEST = $_REQUEST;
         }
     }
@@ -1696,6 +1712,17 @@ class ClementineRequest
             'type'  => $type,
             'key'   => $key,
             'array' => $this->COOKIE,
+        ));
+        return $this->getFromGPC($params);
+    }
+
+    public function session($type, $key, $options = array())
+    {
+        // overwrite options
+        $params = array_merge($options, array(
+            'type'  => $type,
+            'key'   => $key,
+            'array' => $this->SESSION,
         ));
         return $this->getFromGPC($params);
     }
