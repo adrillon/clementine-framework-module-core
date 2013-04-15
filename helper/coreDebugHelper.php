@@ -74,12 +74,16 @@ class coreDebugHelper extends coreDebugHelper_Parent
         }
     }
 
-    public function err404_cannotLoadCtrl()
+    public function err404_cannotLoadCtrl($nomail = 0)
     {
         if (__DEBUGABLE__ && Clementine::$config['clementine_debug']['display_errors']) {
             $request = $this->getRequest();
             $msg = "Erreur 404 : impossible de charger le controleur " . $request->CTRL;
-            $this->trigger_error($msg, E_USER_WARNING, -1);
+            if ($nomail) {
+                $this->trigger_error($msg, "E_USER_WARNING_NOMAIL", -1);
+            } else {
+                $this->trigger_error($msg, E_USER_WARNING, -1);
+            }
         }
     }
 

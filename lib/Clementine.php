@@ -44,7 +44,8 @@ class Clementine
         }
         if (!$call_parent) {
             if (!defined('__DEBUGABLE__') || __DEBUGABLE__) {
-                Clementine::$register['clementine_debug_helper']->trigger_error("Call to undefined method", E_USER_ERROR, 2);
+                $methodname = $trace[1]['class'] . $trace[1]['type'] . $trace[1]['function'] . '()';
+                Clementine::$register['clementine_debug_helper']->trigger_error("Call to undefined method " . $methodname, E_USER_ERROR, 2);
             }
             die();
         }
@@ -73,15 +74,17 @@ class Clementine
         $this->populateRequest();
         $request = $this->getRequest();
         $this->hook('before_first_getController');
-        $controller = $this->getController($request->CTRL);
+        $controller = $this->getController($request->CTRL, array('no_mail_if_404' => true));
         $noblock = false;
         if (!$controller) {
-            if ($request->METHOD == 'CLI') {
-                header('CLI' . ' 404 Not Found', true);
-            } else {
-                header($_SERVER['SERVER_PROTOCOL'] . ' 404 Not Found', true);
+            if (!$erreur_404) {
+                if ($request->METHOD == 'CLI') {
+                    header('CLI' . ' 404 Not Found', true);
+                } else {
+                    header($_SERVER['SERVER_PROTOCOL'] . ' 404 Not Found', true);
+                }
+                $erreur_404 = 1;
             }
-            $erreur_404 = 1;
         } else {
             $this->hook('before_controller_action');
             // charge le controleur demande dans la requete
@@ -94,17 +97,21 @@ class Clementine
                         $noblock = true;
                     }
                 } else {
-                    header($_SERVER['SERVER_PROTOCOL'] . ' 404 Not Found', true);
-                    $erreur_404 = 1;
+                    if (!$erreur_404) {
+                        header($_SERVER['SERVER_PROTOCOL'] . ' 404 Not Found', true);
+                        $erreur_404 = 1;
+                    }
                     if (__DEBUGABLE__) {
                         $debug->err404_noSuchMethod(1);
                     }
                 }
             } else {
-                header($_SERVER['SERVER_PROTOCOL'] . ' 404 Not Found', true);
-                $erreur_404 = 1;
+                if (!$erreur_404) {
+                    header($_SERVER['SERVER_PROTOCOL'] . ' 404 Not Found', true);
+                    $erreur_404 = 1;
+                }
                 if (__DEBUGABLE__) {
-                    $debug->err404_cannotLoadCtrl();
+                    $debug->err404_cannotLoadCtrl(1);
                 }
             }
         }
@@ -121,10 +128,12 @@ class Clementine
         }
         // si erreur 404, on charge un autre controleur
         if ($erreur_404) {
+            // headers deja envoyés
+            // header($_SERVER['SERVER_PROTOCOL'] . ' 404 Not Found', true);
             if (__DEBUGABLE__) {
                 $debug->err404_noSuchBlock(null, 1);
             }
-            $this->trigger404();
+            $this->trigger404(1);
         }
         if (__DEBUGABLE__) {
             $debug->memoryUsage();
@@ -140,9 +149,11 @@ class Clementine
      * @access public
      * @return void
      */
-    public function trigger404()
+    public function trigger404($header_already_sent = false)
     {
-        header($_SERVER['SERVER_PROTOCOL'] . ' 404 Not Found', true);
+        if (!$header_already_sent) {
+            header($_SERVER['SERVER_PROTOCOL'] . ' 404 Not Found', true);
+        }
         $controller = $this->getController('errors');
         $action = 'err404Action';
         $request = $this->getRequest();
@@ -466,7 +477,7 @@ class Clementine
                 eval ('class ' . $elementname . ' extends ' . $prev . $elementname . ' {}');
             } else {
                 if ($type == 'Controller') {
-                    if (__DEBUGABLE__ && !$testonly) {
+                    if (__DEBUGABLE__ && !$testonly && empty($params['no_mail_if_404'])) {
                         $this->getHelper('debug')->err404_noSuchController($elementname);
                     }
                     return false;
@@ -1402,7 +1413,7 @@ class Clementine
         $prestyle = 'background: #EEE; border: 2px solid #333; border-radius: 5px; padding: 1em; margin: 1em; text-align: left; font-family: Courier New; font-size: 13px; line-height: 1.4em; ';
         $strongstyle = 'cursor: pointer; background: #999999; border: 1px solid #555555; border-radius: 1em 1em 1em 1em; box-shadow: 1px 3px 4px rgba(64, 64, 64, 0.3); color: #FFFFFF; font-size: 10px; font-weight: bold; padding: 0.3em 1em; text-shadow: 0 1px 1px #000000; display: inline-block; margin: 0 0 5px; ';
         $togglepre = 'onclick="var elt = this.nextSibling; var current_display = (elt.currentStyle ? elt.currentStyle[\'display\'] : document.defaultView.getComputedStyle(elt,null).getPropertyValue(\'display\')); elt.style.display = (current_display != \'none\' ? \'none\' : \'block\'); "';
-        $display_error  = '<br /><strong style="' . $strongstyle . '; background-color: #666666; " ' . $togglepre .'>#' . Clementine::$_register['_handled_errors'] . ' ' . $error_type . '</strong><div style="position: relative; z-index: 999; background-color: #FFFFFF; ">';
+        $display_error  = '<br /><strong style="' . $strongstyle . '; background-color: #666666; " ' . $togglepre .'>#' . Clementine::$_register['_handled_errors'] . ' ' . $error_type . '</strong><div style="position: relative; z-index: 999; background-color: #FFF; color: #000; font-family: serif; ">';
         $display_error_log      = '#' . Clementine::$_register['_handled_errors'] . ' ' . $error_type . ': ';
         $display_error .= $error_content;
         $display_error_log .= $error_content_log;
@@ -1441,12 +1452,7 @@ class Clementine
         $debug_message .= '<pre class="clementine_error_handler_error" style="' . $prestyle . '">' . $debug_backtrace . '</pre>';
         $debug_message .= '</div>';
         if (__DEBUGABLE__ && Clementine::$config['clementine_debug']['display_errors']) {
-            echo '<style type="text/css">
-                .clementine_error_handler_error {
-                    display: none;
-                }
-            </style>';
-            echo $debug_message;
+            echo '<style type="text/css">.clementine_error_handler_error { display: none; } </style>' . PHP_EOL . $debug_message;
         }
         if (!$nomail &&
             Clementine::$config['clementine_debug']['send_errors_by_email'] &&
