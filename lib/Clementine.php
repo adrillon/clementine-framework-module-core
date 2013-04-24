@@ -437,13 +437,22 @@ class Clementine
         }
         if (!class_exists($elementname, false)) {
             $overrides = $this->getOverrides();
+            if (__DEBUGABLE__ && Clementine::$config['clementine_debug']['writedown_evals']) {
+                if (!is_dir(__FILES_ROOT__ . '/app/evals')) {
+                    mkdir(__FILES_ROOT__ . '/app/evals');
+                }
+            }
             foreach ($overrides as $current => $scope) {
                 $current_class = $current . $elementname;
                 $file_path = __FILES_ROOT__ . '/app/' . $scope . '/' . $current . '/' . $type_short . '/' . $current_class . '.php';
                 if (file_exists($file_path)) {
                     if (isset($prev)) {
                         $parent_class = $prev . $elementname;
-                        eval ('abstract class ' . $current_class . '_Parent extends ' . $parent_class . ' {}');
+                        $code_to_eval = 'abstract class ' . $current_class . '_Parent extends ' . $parent_class . ' {}';
+                        if (__DEBUGABLE__ && Clementine::$config['clementine_debug']['writedown_evals']) {
+                            file_put_contents(__FILES_ROOT__ . '/app/evals/eval_' . $current_class . '.php', '<?php ' . PHP_EOL . $code_to_eval . PHP_EOL . '?>' . PHP_EOL);
+                        }
+                        eval($code_to_eval);
                     }
                     if (!class_exists($current_class . '_Parent', false)) {
                         $adopter = '__CLEMENTINE_CLASS_' . strtoupper($element) . '_' . strtoupper($type) . '_EXTENDS__';
@@ -452,19 +461,23 @@ class Clementine
                                 // strips the "Controller/Model" part
                                 $this->_factory(substr(constant($adopter), 0, - strlen($type)), $type, $testonly, $params);
                             }
-                            eval ('abstract class ' . $current_class . '_Parent extends ' . constant($adopter) . ' {}');
+                            $code_to_eval = 'abstract class ' . $current_class . '_Parent extends ' . constant($adopter) . ' {}';
                         } else {
                             if ($type == 'Controller') {
-                                eval ('abstract class ' . $current_class . '_Parent extends Clementine {}');
+                                $code_to_eval = 'abstract class ' . $current_class . '_Parent extends Clementine {}';
                             } else {
                                 // desactive les appels a getController depuis Model et Helper
-                                eval ('abstract class ' . $current_class . '_Parent extends Clementine {
+                                $code_to_eval = 'abstract class ' . $current_class . '_Parent extends Clementine {
                                     public function getController($ctrl, $params = null) {
                                         $this->getHelper("debug")->getControllerFromModel();
                                     }
-                                }');
+                                }';
                             }
                         }
+                        if (__DEBUGABLE__ && Clementine::$config['clementine_debug']['writedown_evals']) {
+                            file_put_contents(__FILES_ROOT__ . '/app/evals/eval_' . $current_class . '.php', '<?php ' . PHP_EOL . $code_to_eval . PHP_EOL . '?>' . PHP_EOL);
+                        }
+                        eval($code_to_eval);
                     }
                     if (__DEBUGABLE__ && !$testonly) {
                         $this->debug_factory_register_stack($type_short, $file_path);
@@ -474,7 +487,11 @@ class Clementine
                 }
             }
             if (isset($prev) && class_exists($prev . $elementname, false)) {
-                eval ('class ' . $elementname . ' extends ' . $prev . $elementname . ' {}');
+                $code_to_eval = 'class ' . $elementname . ' extends ' . $prev . $elementname . ' {}';
+                if (__DEBUGABLE__ && Clementine::$config['clementine_debug']['writedown_evals']) {
+                    file_put_contents(__FILES_ROOT__ . '/app/evals/eval_' . $elementname . '.php', '<?php ' . PHP_EOL . $code_to_eval . PHP_EOL . '?>' . PHP_EOL);
+                }
+                eval($code_to_eval);
             } else {
                 if ($type == 'Controller') {
                     if (__DEBUGABLE__ && !$testonly && empty($params['no_mail_if_404'])) {
@@ -1120,7 +1137,7 @@ class Clementine
             <strong>DEBUG</strong>
             <span
                 style="cursor: pointer;"
-                onclick='document.getElementById("Clementine_debug_ol").style.display = (parseInt(document.cookie.substring(parseInt("Clementine_debug_div_hide".length) + document.cookie.indexOf("Clementine_debug_div_hide") + 1, parseInt("Clementine_debug_div_hide".length) + document.cookie.indexOf("Clementine_debug_div_hide") + 2)) ? "block" : "none"); document.cookie="Clementine_debug_div_hide=" + escape(parseInt(document.cookie.substring(parseInt("Clementine_debug_div_hide".length) + document.cookie.indexOf("Clementine_debug_div_hide") + 1, parseInt("Clementine_debug_div_hide".length) + document.cookie.indexOf("Clementine_debug_div_hide") + 2)) ? "0" : "1") + "; path=<?php echo __BASE_URL__ . "/"; ?>"'>[toggle]</span>
+                onclick='document.getElementById("Clementine_debug_ol").style.display = (parseInt(document.cookie.substring(parseInt("Clementine_debug_div_hide".length) + document.cookie.indexOf("Clementine_debug_div_hide") + 1, parseInt("Clementine_debug_div_hide".length) + document.cookie.indexOf("Clementine_debug_div_hide") + 2)) ? "block" : "none"); document.cookie="Clementine_debug_div_hide=" + escape(parseInt(document.cookie.substring(parseInt("Clementine_debug_div_hide".length) + document.cookie.indexOf("Clementine_debug_div_hide") + 1, parseInt("Clementine_debug_div_hide".length) + document.cookie.indexOf("Clementine_debug_div_hide") + 2)) ? "0" : "1") + "; path=<?php echo __BASE_URL__ . "/"; ?>"; return false; '>[toggle]</span>
             </div>
             <ol id="Clementine_debug_ol" style="text-align: left; padding: 0.5em 0; margin: 0; list-style-position: inside; <?php echo (isset($_COOKIE['Clementine_debug_div_hide']) && ($_COOKIE['Clementine_debug_div_hide'])) ? 'display: none; ' : 'display: block; '; ?>">
 <?php
@@ -1339,7 +1356,7 @@ class Clementine
             $error_content .= " <em>in</em> <code>$errfile:$errline</code>";
             $error_content_log .= " in $errfile:$errline";
         }
-        $error_content .= "<br />\n";
+        $error_content .= PHP_EOL;
         $backtrace_flags = DEBUG_BACKTRACE_IGNORE_ARGS;
         $nomail = 0;
         switch ($errno) {
@@ -1411,11 +1428,11 @@ class Clementine
         }
         // TODO: les onclick et les styles inline c'est pas terrible mais c'est autonome... trouver une meilleure solution
         $prestyle = 'background: #EEE; border: 2px solid #333; border-radius: 5px; padding: 1em; margin: 1em; text-align: left; font-family: Courier New; font-size: 13px; line-height: 1.4em; ';
-        $strongstyle = 'cursor: pointer; background: #999999; border: 1px solid #555555; border-radius: 1em 1em 1em 1em; box-shadow: 1px 3px 4px rgba(64, 64, 64, 0.3); color: #FFFFFF; font-size: 10px; font-weight: bold; padding: 0.3em 1em; text-shadow: 0 1px 1px #000000; display: inline-block; margin: 0 0 5px; ';
-        $togglepre = 'onclick="var elt = this.nextSibling; var current_display = (elt.currentStyle ? elt.currentStyle[\'display\'] : document.defaultView.getComputedStyle(elt,null).getPropertyValue(\'display\')); elt.style.display = (current_display != \'none\' ? \'none\' : \'block\'); "';
-        $display_error  = '<br /><strong style="' . $strongstyle . '; background-color: #666666; " ' . $togglepre .'>#' . Clementine::$_register['_handled_errors'] . ' ' . $error_type . '</strong><div style="position: relative; z-index: 999; background-color: #FFF; color: #000; font-family: serif; ">';
-        $display_error_log      = '#' . Clementine::$_register['_handled_errors'] . ' ' . $error_type . ': ';
-        $display_error .= $error_content;
+        $strongstyle = 'cursor: pointer; background: #999999; border: 1px solid #555555; border-radius: 1em 1em 1em 1em; box-shadow: 1px 3px 4px rgba(64, 64, 64, 0.3); color: #FFFFFF; font-size: 10px; font-weight: bold; padding: 0.3em 1em; text-shadow: 0 1px 1px #000000; display: inline-block; margin: 0 0 5px 5px; position: relative; z-index: 999; ';
+        $togglepre = 'onclick="var elt = this.nextSibling; var current_display = (elt.currentStyle ? elt.currentStyle[\'display\'] : document.defaultView.getComputedStyle(elt,null).getPropertyValue(\'display\')); if (typeof(this.previous_display) == \'undefined\') { this.previous_display = (current_display != \'none\' ? current_display : \'block\') }; elt.style.display = (current_display != \'none\' ? \'none\' : this.previous_display); return false; "';
+        $display_error  = PHP_EOL . '<br />' . PHP_EOL . '<strong style="' . $strongstyle . '; background-color: #666666; margin: 0 5px 5px 0; " ' . $togglepre .'>#' . Clementine::$_register['_handled_errors'] . ' ' . $error_type . PHP_EOL . '</strong><div style="position: relative; z-index: 999; display: inline; background-color: #FFF; color: #000; font-family: serif; ">';
+        $display_error_log = PHP_EOL . '#' . Clementine::$_register['_handled_errors'] . ' ' . $error_type . ': ';
+        $display_error .= PHP_EOL . $error_content;
         $display_error_log .= $error_content_log;
         if ($errfile && $errline) {
             $highlighed_content = highlight_string(file_get_contents($errfile), true);
@@ -1424,7 +1441,9 @@ class Clementine
             $from = max(0, $errline - 7);
             $content = array_slice($content, $from, 10);
             $prestyle = 'background: #FFF; border: 2px solid #333; border-radius: 5px; padding: 1em; margin: 1em; text-align: left; font-family: Courier New; font-size: 13px; line-height: 1.4em; overflow: auto; white-space: nowrap; ';
-            $display_error .= '<pre style="' . $prestyle . '">';
+            // $display_error .= '<pre style="' . $prestyle . '">';
+            $display_error .= '<strong style="' . $strongstyle . '" ' . $togglepre . '>' . PHP_EOL . 'Code dump' . PHP_EOL . '</strong>';
+            $display_error .= '<pre class="clementine_error_handler_error" style="' . $prestyle . '">';
             $nb = ($from + 1);
             foreach ($content as $line) {
                 if ($nb == $errline) {
@@ -1437,22 +1456,22 @@ class Clementine
                 $display_error .= '<br />' . PHP_EOL;
                 ++$nb;
             }
-            $display_error .= '</pre>';
+            $display_error .= '</span></code></span></pre>';
         }
         $debug_message  = $display_error;
         $request_dump    = Clementine::dump(Clementine::$register['request'], true);
         $server_dump     = Clementine::dump($_SERVER, true);
         $debug_backtrace = Clementine::dump(debug_backtrace($backtrace_flags), true);
         $debug_message  = $display_error;
-        $debug_message .= '<strong style="' . $strongstyle . '" ' . $togglepre . '>Request dump</strong>';
+        $debug_message .= PHP_EOL . '<strong style="' . $strongstyle . '" ' . $togglepre . '>' . PHP_EOL . 'Request dump' . PHP_EOL . '</strong>';
         $debug_message .= '<pre class="clementine_error_handler_error" style="' . $prestyle . '">' . $request_dump . '</pre>';
-        $debug_message .= '<strong style="' . $strongstyle . '" ' . $togglepre . '>Server dump</strong>';
+        $debug_message .= PHP_EOL . '<strong style="' . $strongstyle . '" ' . $togglepre . '>' . PHP_EOL . 'Server dump' . PHP_EOL . '</strong>';
         $debug_message .= '<pre class="clementine_error_handler_error" style="' . $prestyle . '">' . $server_dump . '</pre>';
-        $debug_message .= '<strong style="' . $strongstyle . '" ' . $togglepre . '>Debug_backtrace</strong>';
+        $debug_message .= PHP_EOL . '<strong style="' . $strongstyle . '" ' . $togglepre . '>' . PHP_EOL . 'Debug_backtrace' . PHP_EOL . '</strong>';
         $debug_message .= '<pre class="clementine_error_handler_error" style="' . $prestyle . '">' . $debug_backtrace . '</pre>';
         $debug_message .= '</div>';
         if (__DEBUGABLE__ && Clementine::$config['clementine_debug']['display_errors']) {
-            echo '<style type="text/css">.clementine_error_handler_error { display: none; } </style>' . PHP_EOL . $debug_message;
+            echo '<style type="text/css">' . PHP_EOL . '.clementine_error_handler_error {' . PHP_EOL . 'display: none;' . PHP_EOL . '}' . PHP_EOL . '</style>' . PHP_EOL . $debug_message . PHP_EOL . PHP_EOL;
         }
         if (!$nomail &&
             Clementine::$config['clementine_debug']['send_errors_by_email'] &&
