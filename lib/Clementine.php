@@ -990,7 +990,7 @@ class Clementine
         if (isset($config['clementine_debug']) &&
             !empty($config['clementine_debug']['enabled']) &&
             isset($config['clementine_debug']['allowed_ip']) &&
-            ((!$config['clementine_debug']['allowed_ip']) || (in_array($_SERVER['REMOTE_ADDR'], explode(',', $config['clementine_debug']['allowed_ip']))))) {
+            ((!$config['clementine_debug']['allowed_ip']) || (!isset($_SERVER['SERVER_NAME']) || (isset($_SERVER['REMOTE_ADDR']) && in_array($_SERVER['REMOTE_ADDR'], explode(',', $config['clementine_debug']['allowed_ip'])))))) {
             define('__DEBUGABLE__', '1');
         } else {
             define('__DEBUGABLE__', '0');
