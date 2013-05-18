@@ -78,7 +78,7 @@ class Clementine
         $noblock = false;
         if (!$controller) {
             if (!$erreur_404) {
-                if ($request->METHOD == 'CLI') {
+                if ($request->INVOCATION_METHOD == 'CLI') {
                     header('CLI' . ' 404 Not Found', true);
                 } else {
                     header($_SERVER['SERVER_PROTOCOL'] . ' 404 Not Found', true);
@@ -1562,6 +1562,7 @@ class ClementineRequest
     public function __construct()
     {
         $this->METHOD = 'GET';
+        $this->INVOCATION_METHOD = 'URL';
         // si appel en CLI, on reconstruit _GET a partir de argv[3]
         if (!isset($_SERVER['SERVER_NAME'])) {
             global $argv;
@@ -1578,7 +1579,7 @@ class ClementineRequest
             }
             // si appel en CLI, on considère qu'on est en local
             $_SERVER['REMOTE_ADDR'] = '127.0.0.1';
-            $this->METHOD = 'CLI';
+            $this->INVOCATION_METHOD = 'CLI';
         }
         if (isset($_SERVER['REQUEST_METHOD']) && isset($this->allowed_request_methods[$_SERVER['REQUEST_METHOD']])) {
             $this->METHOD = $_SERVER['REQUEST_METHOD'];
