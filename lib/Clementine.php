@@ -1435,9 +1435,9 @@ class Clementine
         $display_error .= PHP_EOL . $error_content;
         $display_error_log .= $error_content_log;
         if ($errfile && $errline) {
-            $highlighed_content = highlight_string(file_get_contents($errfile), true);
-            $highlighed_content = preg_replace('@<br /></span>@', '</span><br />' . PHP_EOL, $highlighed_content);
-            $content = explode('<br />', $highlighed_content);
+            $highlighted_content = highlight_string(file_get_contents($errfile), true);
+            $highlighted_content = preg_replace('@<br /></span>@', '</span><br />' . PHP_EOL, $highlighted_content);
+            $content = explode('<br />', $highlighted_content);
             $from = max(0, $errline - 7);
             $content = array_slice($content, $from, 10);
             $prestyle = 'background: #FFF; border: 2px solid #333; border-radius: 5px; padding: 1em; margin: 1em; text-align: left; font-family: Courier New; font-size: 13px; line-height: 1.4em; overflow: auto; white-space: nowrap; ';
@@ -1471,7 +1471,12 @@ class Clementine
         $debug_message .= '<pre class="clementine_error_handler_error" style="' . $prestyle . '">' . $debug_backtrace . '</pre>';
         $debug_message .= '</div>';
         if (__DEBUGABLE__ && Clementine::$config['clementine_debug']['display_errors']) {
-            echo '<style type="text/css">' . PHP_EOL . '.clementine_error_handler_error {' . PHP_EOL . 'display: none;' . PHP_EOL . '}' . PHP_EOL . '</style>' . PHP_EOL . $debug_message . PHP_EOL . PHP_EOL;
+            // si appel non CLI
+            if (isset($_SERVER['SERVER_NAME'])) {
+                echo '<style type="text/css">' . PHP_EOL . '.clementine_error_handler_error {' . PHP_EOL . 'display: none;' . PHP_EOL . '}' . PHP_EOL . '</style>' . PHP_EOL . $debug_message . PHP_EOL . PHP_EOL;
+            } else {
+                echo html_entity_decode(strip_tags(preg_replace('@<br />' . PHP_EOL . '?@', PHP_EOL, $debug_message)), ENT_QUOTES, __PHP_ENCODING__);
+            }
         }
         if (!$nomail &&
             Clementine::$config['clementine_debug']['send_errors_by_email'] &&
