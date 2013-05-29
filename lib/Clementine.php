@@ -52,6 +52,16 @@ class Clementine
     }
 
     /**
+     * __construct : selon le modele de surcharge choisi dans ce framework, l'appel de parent::__construct() ne doit pas planter si la fonction n'existe pas
+     * 
+     * @access public
+     * @return void
+     */
+    public function __construct()
+    {
+    }
+
+    /**
      * run : lance l'application construite sur l'architecture MVC
      *
      * @access public
@@ -573,7 +583,7 @@ class Clementine
      * @access public
      * @return void
      */
-    public function getBlock($path, $data = null, $request = null, $ignores = null, $load_parent = false, $testonly = false)
+    public function getBlock($path, $data = null, $request = null, $ignores = null, $load_parent = false, $testonly = false, $never_display_errors = false)
     {
         ++Clementine::$_register['_forbid_getcontroller'];
         $path = strtolower($path);
@@ -651,7 +661,14 @@ class Clementine
                         if (!$request) {
                             $request = $this->getRequest();
                         }
+                        if ($never_display_errors) {
+                            $old_display_errors = Clementine::$config['clementine_debug']['display_errors'];
+                            Clementine::$config['clementine_debug']['display_errors'] = 0;
+                        }
                         $this->_require($file, $data, $request);
+                        if ($never_display_errors) {
+                            Clementine::$config['clementine_debug']['display_errors'] = $old_display_errors;
+                        }
                         if (__DEBUGABLE__ && Clementine::$config['clementine_debug']['block_filename']) {
                             $depth = count(Clementine::$_register['_parent_loaded_blocks']);
                             echo "\r\n<!-- (depth " . $depth . ') end of ' . $file . " -->\r\n";
@@ -707,12 +724,12 @@ class Clementine
      * @access public
      * @return void
      */
-    public function getParentBlock($data = null, $request = null, $ignores = null)
+    public function getParentBlock($data = null, $request = null, $ignores = null, $never_display_errors = false)
     {
         $parent_blocks = Clementine::$_register['_parent_loaded_blocks'];
         $last_block = array_pop($parent_blocks);
         if ($last_block) {
-            return $this->getBlock($last_block, $data, $request, $ignores, true);
+            return $this->getBlock($last_block, $data, $request, $ignores, true, false, $never_display_errors);
         } else {
             return 0;
         }
@@ -727,10 +744,10 @@ class Clementine
      * @access public
      * @return void
      */
-    public function getBlockHtml($path, $data = null, $request = null, $ignores = null, $load_parent = false)
+    public function getBlockHtml($path, $data = null, $request = null, $ignores = null, $load_parent = false, $never_display_errors = false)
     {
         ob_start();
-        $this->getBlock($path, $data, $request, $ignores, $load_parent);
+        $this->getBlock($path, $data, $request, $ignores, $load_parent, false, $never_display_errors);
         $script = ob_get_contents();
         ob_end_clean();
         return $script;
