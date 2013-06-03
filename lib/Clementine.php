@@ -335,22 +335,25 @@ class Clementine
                 define('__BASE__', __BASE_URL__ . '/' . $request->LANG);
                 define('__WWW__', __WWW_ROOT__ . '/' . $request->LANG);
                 // URL equivalentes dans les autres langues
-                $curpage = implode('/', $request);
+                $currequest = array(
+                    'CTRL' => $request->CTRL,
+                    'ACT'  => $request->ACT,
+                    'ARGS' => $request->ARGS
+                );
+                $curpage = implode('/', $currequest);
                 $request->EQUIV = array();
                 foreach ($lang_dispos as $lang) {
-                    $request->EQUIV[$lang] = __WWW_ROOT__ . '/' . preg_replace('@^' . $request->LANG . '@', $lang . '', $curpage);
+                    $request->EQUIV[$lang] = __WWW_ROOT__ . '/' . $lang . '/' . $curpage;
                 }
             } else {
                 define('__BASE__', __BASE_URL__);
                 define('__WWW__', __WWW_ROOT__);
                 // URL equivalente de la page courante
                 $currequest = array(
-                    'LANG' => $request->LANG,
                     'CTRL' => $request->CTRL,
                     'ACT'  => $request->ACT,
                     'ARGS' => $request->ARGS
                 );
-                array_shift($currequest);
                 $curpage = implode('/', $currequest);
                 $request->EQUIV = array();
                 $request->EQUIV[$request->LANG] = __WWW_ROOT__ . '/' . $curpage;
@@ -707,7 +710,7 @@ class Clementine
                 if ($niveau3) {
                     $tuteur_path .= '/' . $niveau3;
                 }
-                $found = $this->getBlock($tuteur_path, $data, $request, $ignores, $load_parent, $testonly);
+                $found = $this->getBlock($tuteur_path, $data, $request, $ignores, $load_parent, $testonly, $never_display_errors);
             }
         }
         if (__DEBUGABLE__ && !$found && !$testonly && !$load_parent) {
