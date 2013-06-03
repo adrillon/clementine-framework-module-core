@@ -21,6 +21,7 @@ class Clementine
         '_handled_errors'             => 0,
         '_parent_loaded_blocks'       => array(),
         '_parent_loaded_blocks_files' => array(),
+        '_canGetBlock' => array(),
         '_forbid_getcontroller' => 0);
 
     /**
@@ -162,7 +163,11 @@ class Clementine
     public function trigger404($header_already_sent = false)
     {
         if (!$header_already_sent) {
-            header($_SERVER['SERVER_PROTOCOL'] . ' 404 Not Found', true);
+            if (isset($_SERVER['SERVER_NAME'])) {
+                header($_SERVER['SERVER_PROTOCOL'] . ' 404 Not Found', true);
+            } else {
+                header('CLI' . ' 404 Not Found', true);
+            }
         }
         $controller = $this->getController('errors');
         $action = 'err404Action';
@@ -585,6 +590,7 @@ class Clementine
      */
     public function getBlock($path, $data = null, $request = null, $ignores = null, $load_parent = false, $testonly = false, $never_display_errors = false)
     {
+        $conf = Clementine::$config;
         ++Clementine::$_register['_forbid_getcontroller'];
         $path = strtolower($path);
         if (__DEBUGABLE__) {
@@ -654,7 +660,7 @@ class Clementine
                     }
                     // semaphore pour eviter les appels a getController depuis un block
                     if (!$testonly && !$a_ignorer) {
-                        if (__DEBUGABLE__ && Clementine::$config['clementine_debug']['block_filename']) {
+                        if (__DEBUGABLE__ && $conf['clementine_debug']['block_filename']) {
                             $depth = count(Clementine::$_register['_parent_loaded_blocks']);
                             echo "\r\n<!-- (depth " . $depth . ') begins ' . $file . " -->\r\n";
                         }
@@ -662,14 +668,14 @@ class Clementine
                             $request = $this->getRequest();
                         }
                         if ($never_display_errors) {
-                            $old_display_errors = Clementine::$config['clementine_debug']['display_errors'];
-                            Clementine::$config['clementine_debug']['display_errors'] = 0;
+                            $old_display_errors = $conf['clementine_debug']['display_errors'];
+                            $conf['clementine_debug']['display_errors'] = 0;
                         }
                         $this->_require($file, $data, $request);
                         if ($never_display_errors) {
-                            Clementine::$config['clementine_debug']['display_errors'] = $old_display_errors;
+                            $conf['clementine_debug']['display_errors'] = $old_display_errors;
                         }
-                        if (__DEBUGABLE__ && Clementine::$config['clementine_debug']['block_filename']) {
+                        if (__DEBUGABLE__ && $conf['clementine_debug']['block_filename']) {
                             $depth = count(Clementine::$_register['_parent_loaded_blocks']);
                             echo "\r\n<!-- (depth " . $depth . ') end of ' . $file . " -->\r\n";
                         }
@@ -714,6 +720,9 @@ class Clementine
             $this->getHelper('debug')->err404_noSuchBlock($path);
         }
         --Clementine::$_register['_forbid_getcontroller'];
+        if ($found) {
+            Clementine::$_register['_canGetBlock'][$path] = 1;
+        }
         return $found;
     }
 
@@ -845,6 +854,9 @@ class Clementine
      */
     public function canGetBlock($path, $data = null, $request = null, $ignores = null, $load_parent = false)
     {
+        if (isset(Clementine::$_register['_canGetBlock'][$path])) {
+            return 1;
+        }
         return $this->getBlock($path, $data, $request, $ignores, $load_parent, true);
     }
 
