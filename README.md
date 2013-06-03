@@ -43,6 +43,8 @@ $this->getRequest()
 $request->get('int', 'id_user'); // get, post, cookie, session, request...
 $request->map_url() // et $request->canonical_url()
 ```
+Note : il est mieux d'utiliser $request->GET plutôt que $_GET.
+
 La gestion des erreurs
 ---
 rapports d'erreurs, envoi par mail
