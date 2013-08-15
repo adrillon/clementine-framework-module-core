@@ -1631,15 +1631,14 @@ class ClementineRequest
             $this->GET = $this->stripslashesRecursive($_GET);
             $this->POST = $this->stripslashesRecursive($_POST);
             $this->COOKIE = $this->stripslashesRecursive($_COOKIE);
-            $this->SESSION = $this->stripslashesRecursive($_SESSION);
             $this->REQUEST = $this->stripslashesRecursive($_REQUEST);
         } else {
             $this->GET = $_GET;
             $this->POST = $_POST;
             $this->COOKIE = $_COOKIE;
-            $this->SESSION = $_SESSION;
             $this->REQUEST = $_REQUEST;
         }
+        $this->SESSION = $_SESSION;
     }
 
     /**
