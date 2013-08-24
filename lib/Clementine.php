@@ -1574,6 +1574,7 @@ class Clementine
     public static function dump($expression, $return = false)
     {
         $dump = highlight_string('<?php' . PHP_EOL . preg_replace("/ => " . PHP_EOL . " *array *\(/S", ' => array(', var_export($expression, true)) . PHP_EOL . '?>', true);
+        $dump = str_replace('<code>', '<code style="display: inline-block; text-align: left; ">', $dump);
         $dump = str_replace('<span style="color: #0000BB">&lt;?php<br />', '<span style="color: #0000BB">', $dump);
         $dump = str_replace('<span style="color: #0000BB">?&gt;', '<span style="color: #0000BB">', $dump);
         if (!$return) {
