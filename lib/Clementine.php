@@ -1120,17 +1120,14 @@ class Clementine
                         $tmp = parse_ini_file($filepath, true);
                     }
                     if (is_array($tmp)) {
-                        $config = array_merge_recursive($config, $tmp);
-                    }
-                }
-            }
-            // surcharge : ecrase avec la derniere valeur
-            foreach ($config as &$section) {
-                foreach ($section as $key => $val) {
-                    if (is_array($val)) {
-                        $cnt = count($val);
-                        if ($cnt) {
-                            $section[$key] = $val[$cnt - 1];
+                        // surcharge : ecrase avec la derniere valeur
+                        foreach ($tmp as $section_key => $section_values) {
+                            if (!isset($config[$section_key])) {
+                                $config[$section_key] = array();
+                            }
+                            foreach ($section_values as $key => $val) {
+                                $config[$section_key][$key] = $val;
+                            }
                         }
                     }
                 }
@@ -1937,4 +1934,3 @@ class ClementineRequest
         }
     }
 }
-?>
