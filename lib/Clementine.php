@@ -1568,12 +1568,20 @@ class Clementine
      * @access public
      * @return void
      */
-    public static function dump($expression, $return = false)
+    public static function dump($expression, $return = false, $highlight = true)
     {
-        $dump = highlight_string('<?php' . PHP_EOL . preg_replace("/ => " . PHP_EOL . " *array *\(/S", ' => array(', var_export($expression, true)) . PHP_EOL . '?>', true);
-        $dump = str_replace('<code>', '<code style="display: inline-block; text-align: left; ">', $dump);
-        $dump = str_replace('<span style="color: #0000BB">&lt;?php<br />', '<span style="color: #0000BB">', $dump);
-        $dump = str_replace('<span style="color: #0000BB">?&gt;', '<span style="color: #0000BB">', $dump);
+        $dump = var_export($expression, true);
+        $dump = preg_replace('/' . PHP_EOL . ' *stdClass::__set_state/', 'stdClass::__set_state', $dump);
+        $dump = preg_replace("/ => " . PHP_EOL . " *array *\(/S", ' => array(', $dump);
+        if ($highlight) {
+            $dump = highlight_string('<?php' . PHP_EOL . $dump . PHP_EOL . '?>', true);
+            $dump = str_replace('<code>', '<code style="display: inline-block; text-align: left; ">', $dump);
+            $dump = str_replace('<span style="color: #0000BB">&lt;?php<br />', '<span style="color: #0000BB">', $dump);
+            $dump = str_replace('<span style="color: #0000BB">?&gt;', '<span style="color: #0000BB">', $dump);
+        } else {
+            $dump = htmlentities($dump, ENT_QUOTES, __PHP_ENCODING__);
+            $dump = '<pre>' . $dump . '</pre>';
+        }
         if (!$return) {
             echo $dump;
         }
@@ -1882,7 +1890,9 @@ class ClementineRequest
                 @settype($params['ifnotset'], $params['type']);
                 return $params['ifnotset'];
             }
-            return null;
+            $ret = null;
+            @settype($ret, $params['type']);
+            return $ret;
         } else {
             if (!empty($params['striptags'])) {
                 $params['striptags_tags'] = ((strlen($params['striptags']) && $params['striptags'] != 1) ? $params['striptags'] : ''); // tags a preserver
@@ -1905,7 +1915,9 @@ class ClementineRequest
                     @settype($params['ifnotset'], $params['type']);
                     return $params['ifnotset'];
                 }
-                return null;
+                $ret = null;
+                @settype($ret, $params['type']);
+                return $ret;
             }
             if (isset($params['ifset']) && !is_array($params['ifset'])) {
                 return $params['ifset'];
