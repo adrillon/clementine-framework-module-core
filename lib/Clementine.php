@@ -959,7 +959,7 @@ class Clementine
         if (!isset($_SERVER['SERVER_NAME'])) {
             global $argv;
             if (isset($argv[1]) && preg_match('@https?://@', $argv[1])) {
-                define('__WWW_ROOT__'   , $argv[1]);
+                define('__WWW_ROOT__', $argv[1]);
             } else {
                 echo $usage;
                 die();
@@ -977,14 +977,18 @@ class Clementine
                 }
                 define('__BASE_URL__', $tmp);
                 unset ($tmp);
-                define('__FILES_ROOT__'     , str_replace('//', '/', $_SERVER['DOCUMENT_ROOT'] . __BASE_URL__));
+                $files_root = preg_replace('@//*@', '/', $_SERVER['DOCUMENT_ROOT'] . __BASE_URL__);
+                if ($files_root != '/') {
+                    $files_root = preg_replace('@/$@', '', $files_root);
+                }
+                define('__FILES_ROOT__', $files_root);
             } else {
                 global $argv;
                 if (isset($argv[1]) && preg_match('@https?://@', $argv[1])) {
                     $tmp = preg_replace('@https?://[^/]+@', '', $argv[1]);
                     define('__BASE_URL__', $tmp);
                     unset ($tmp);
-                    define('__FILES_ROOT__'     , realpath(dirname(__FILE__) . '/../../../../'));
+                    define('__FILES_ROOT__', realpath(dirname(__FILE__) . '/../../../../'));
                 } else {
                     echo $usage;
                     die();
@@ -1012,7 +1016,7 @@ class Clementine
         }
         // si appel HTTP
         if (isset($_SERVER['SERVER_NAME'])) {
-            define('__WWW_ROOT__'       , $protocol . $_SERVER['SERVER_NAME'] . __BASE_URL__);
+            define('__WWW_ROOT__', $protocol . $_SERVER['SERVER_NAME'] . __BASE_URL__);
         }
         $overrides = $this->getOverrides();
         foreach ($overrides as $module => $scope) {
