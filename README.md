@@ -1,4 +1,4 @@
-Clementine Framework : module Core
+Clementine Framework : module CORE
 ===
 
 Clementine : MVC et héritage
