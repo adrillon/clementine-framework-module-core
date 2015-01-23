@@ -1400,14 +1400,17 @@ class Clementine
             case E_ERROR:
                 $error_type = 'Error';
                 $backtrace_flags = 0;
+                $color = "\033[31m";
                 $fatal = 1;
                 break;
             case E_WARNING:
                 $error_type = 'Warning';
+                $color = "\033[33m";
                 break;
             case E_PARSE:
                 $error_type = 'Parse error';
                 $backtrace_flags = 0;
+                $color = "\033[31m";
                 $fatal = 1;
                 break;
             case E_NOTICE:
@@ -1415,20 +1418,25 @@ class Clementine
                 break;
             case E_CORE_ERROR:
                 $error_type = 'Core error';
+                $color = "\033[31m";
                 $fatal = 1;
                 break;
             case E_CORE_WARNING:
                 $error_type = 'Core warning';
+                $color = "\033[33m";
                 break;
             case E_COMPILE_ERROR:
                 $error_type = 'Compile error';
+                $color = "\033[31m";
                 $fatal = 1;
                 break;
             case E_COMPILE_WARNING:
                 $error_type = 'Compile warning';
+                $color = "\033[33m";
                 break;
             case E_USER_ERROR:
                 $error_type = 'User error';
+                $color = "\033[31m";
                 $fatal = 1;
                 break;
             case 'E_USER_WARNING_NOMAIL':
@@ -1438,6 +1446,7 @@ class Clementine
                     $errno == E_USER_WARNING;
                     $nomail = 1;
                 }
+                $color = "\033[33m";
                 break;
             case E_USER_NOTICE:
                 $error_type = 'User notice';
@@ -1456,10 +1465,12 @@ class Clementine
                 break;
             case E_ALL:
                 $error_type = 'Unspecified error';
+                $color = "\033[31m";
                 $fatal = 1;
                 break;
             default:
                 $error_type = 'Unknown error';
+                $color = "\033[31m";
                 $fatal = 1;
                 break;
         }
@@ -1551,12 +1562,45 @@ class Clementine
             );
         }
         if (Clementine::$config['clementine_debug']['log_errors']) {
-            error_log($display_error_log);
+            Clementine::log($display_error_log, $color);
         }
         if ($fatal) {
             die();
         }
         return true;
+    }
+
+    /**
+     * log : error_log colored messages
+     * 
+     * @param mixed $message : message to log
+     * @param mixed $color : custom color code, or keyword in ("info", "warn", "error", "red", "greed", "blue", "yellow")
+     * @access public
+     * @return void
+     */
+    public static function log($message, $color = "") {
+        $nocolor = "\e[0m";
+        switch($color) {
+        case 'info':
+        case 'green':
+            $color = "\033[32m";
+            break;
+        case 'warn':
+        case 'yellow':
+            $color = "\033[33m";
+            break;
+        case 'error':
+        case 'red':
+            $color = "\033[31m";
+            break;
+        case 'blue':
+            $color = "\033[34m";
+            break;
+        }
+        if ($color) {
+            $message .= $nocolor;
+        }
+        error_log($color . $message);
     }
 
     public static function clementine_shutdown_handler()
