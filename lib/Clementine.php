@@ -1383,14 +1383,25 @@ class Clementine
         ++Clementine::$_register['_handled_errors'];
         $fatal = 0;
         if (is_array($errstr)) {
-            $errmsg = implode('<br />' . PHP_EOL, $errstr);
+            foreach ($errstr as $key => $val) {
+                $error_content = '';
+                $error_content_log = '';
+                if ($val == 'html') {
+                    $errmsg = strip_tags(str_replace('<br />', PHP_EOL, html_entity_decode($key)));
+                    $error_content = PHP_EOL . $key;
+                    $error_content_log = PHP_EOL . $errmsg;
+                } else {
+                    $error_content = PHP_EOL . htmlentities($val, ENT_QUOTES, __PHP_ENCODING__);
+                    $error_content_log = PHP_EOL . $val;
+                }
+            }
         } else {
-            $errmsg = $errstr;
+            $error_content = htmlentities($errstr, ENT_QUOTES, __PHP_ENCODING__);
+            $error_content_log = "$errstr";
         }
-        $error_content = "$errmsg";
-        $error_content_log = "$errmsg";
+
         if ($errfile) {
-            $error_content .= " <em>in</em> <code>$errfile:$errline</code>";
+            $error_content .= " <em>in</em> <code>" . htmlentities($errfile, ENT_QUOTES, __PHP_ENCODING__) . ":$errline</code>";
             $error_content_log .= " in $errfile:$errline";
         }
         $error_content .= PHP_EOL;
@@ -1504,7 +1515,7 @@ class Clementine
                 $display_error .= '<br />' . PHP_EOL;
                 ++$nb;
             }
-            $display_error .= '</span></code></span></pre>';
+            $display_error .= '</pre>';
         }
         $debug_message  = $display_error;
         $request_dump    = Clementine::dump(Clementine::$register['request'], true);
@@ -1612,24 +1623,28 @@ class Clementine
     }
 
     /**
-     * dump : prints developer-readable information about a variable ;)
+     * dump : prints developer-readable information about a variable
      * 
-     * @param mixed $expression 
+     * @param mixed $thing 
      * @param mixed $return 
      * @static
      * @access public
      * @return void
      */
-    public static function dump($expression, $return = false, $highlight = true)
+    public static function dump($thing, $return = false, $highlight = true)
     {
-        $dump = var_export($expression, true);
+        if (is_string($thing)) {
+            $dump = $thing;
+        } else {
+            $dump = var_export($thing, true);
+        }
         $dump = preg_replace('/' . PHP_EOL . ' *stdClass::__set_state/', 'stdClass::__set_state', $dump);
         $dump = preg_replace("/ => " . PHP_EOL . " *array *\(/S", ' => array(', $dump);
         if ($highlight) {
-            $dump = highlight_string('<?php' . PHP_EOL . $dump . PHP_EOL . '?>', true);
-            $dump = str_replace('<code>', '<code style="display: inline-block; text-align: left; ">', $dump);
-            $dump = str_replace('<span style="color: #0000BB">&lt;?php<br />', '<span style="color: #0000BB">', $dump);
-            $dump = str_replace('<span style="color: #0000BB">?&gt;', '<span style="color: #0000BB">', $dump);
+            $dump = highlight_string('<?php ' . $dump . PHP_EOL . '?>', true);
+            $dump = preg_replace('@^<code><span style="color: #000000">' . PHP_EOL . '<span style="color: #0000BB">&lt;\?php&nbsp;@', '<code><span style="color: #0000BB">', $dump);
+            $dump = str_replace('<code>', '<code style="display: table; text-align: left; ">', $dump);
+            $dump = preg_replace('@\?&gt;</span>' . PHP_EOL . '</span>' . PHP_EOL . '</code>$@', '</span></code>' . PHP_EOL, $dump);
         } else {
             $dump = htmlentities($dump, ENT_QUOTES, __PHP_ENCODING__);
             $dump = '<pre>' . $dump . '</pre>';
