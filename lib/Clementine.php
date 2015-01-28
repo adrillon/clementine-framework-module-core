@@ -1383,17 +1383,23 @@ class Clementine
         ++Clementine::$_register['_handled_errors'];
         $fatal = 0;
         if (is_array($errstr)) {
+            $error_content = '';
+            $error_content_log = '';
+            $nb_ligne = 0;
             foreach ($errstr as $key => $val) {
-                $error_content = '';
-                $error_content_log = '';
+                if ($nb_ligne) {
+                    $error_content .= '<br />' . PHP_EOL;
+                    $error_content_log .= PHP_EOL;
+                }
                 if ($val == 'html') {
                     $errmsg = strip_tags(str_replace('<br />', PHP_EOL, html_entity_decode($key)));
-                    $error_content = PHP_EOL . $key;
-                    $error_content_log = PHP_EOL . $errmsg;
+                    $error_content .= $key;
+                    $error_content_log .= $errmsg;
                 } else {
-                    $error_content = PHP_EOL . htmlentities($val, ENT_QUOTES, __PHP_ENCODING__);
-                    $error_content_log = PHP_EOL . $val;
+                    $error_content .= htmlentities($val, ENT_QUOTES, __PHP_ENCODING__);
+                    $error_content_log .= $val;
                 }
+                ++$nb_ligne;
             }
         } else {
             $error_content = htmlentities($errstr, ENT_QUOTES, __PHP_ENCODING__);
