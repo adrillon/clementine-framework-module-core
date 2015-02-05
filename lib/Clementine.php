@@ -1168,38 +1168,49 @@ class Clementine
                 'heritage'   => '<span style="color: red">Sanity-check sur les héritages : pour éviter les conflits entre surcharges</span>',
                 'overrides'  => 'Modules chargés (et poids)',
                 'sql'        => 'Log des requêtes SQL exécutées');
-?>
+            $debug = <<<HTML
         <div id="Clementine_debug_div" style="background: #EEE; font-family: courier; font-size: 14px; padding: 0.5em; -moz-border-radius: 5px; " >
             <div style="text-align: right; ">
-            <strong>DEBUG</strong>
-            <span
+            <button
                 style="cursor: pointer;"
-                onclick='document.getElementById("Clementine_debug_ol").style.display = (parseInt(document.cookie.substring(parseInt("Clementine_debug_div_hide".length) + document.cookie.indexOf("Clementine_debug_div_hide") + 1, parseInt("Clementine_debug_div_hide".length) + document.cookie.indexOf("Clementine_debug_div_hide") + 2)) ? "block" : "none"); document.cookie="Clementine_debug_div_hide=" + escape(parseInt(document.cookie.substring(parseInt("Clementine_debug_div_hide".length) + document.cookie.indexOf("Clementine_debug_div_hide") + 1, parseInt("Clementine_debug_div_hide".length) + document.cookie.indexOf("Clementine_debug_div_hide") + 2)) ? "0" : "1") + "; path=<?php echo __BASE_URL__ . "/"; ?>"; return false; '>[toggle]</span>
+                onclick='document.getElementById("Clementine_debug_ol").style.display = (parseInt(document.cookie.substring(parseInt("Clementine_debug_div_hide".length) + document.cookie.indexOf("Clementine_debug_div_hide") + 1, parseInt("Clementine_debug_div_hide".length) + document.cookie.indexOf("Clementine_debug_div_hide") + 2)) ? "block" : "none"); document.cookie="Clementine_debug_div_hide=" + escape(parseInt(document.cookie.substring(parseInt("Clementine_debug_div_hide".length) + document.cookie.indexOf("Clementine_debug_div_hide") + 1, parseInt("Clementine_debug_div_hide".length) + document.cookie.indexOf("Clementine_debug_div_hide") + 2)) ? "0" : "1") + "; path=
+HTML;
+            $debug.= __BASE_URL__ . "/";
+            $debug.= <<<HTML
+            "; return false; '>DEBUG</button>
             </div>
-            <ol id="Clementine_debug_ol" style="text-align: left; padding: 0.5em 0; margin: 0; list-style-position: inside; <?php echo (isset($_COOKIE['Clementine_debug_div_hide']) && ($_COOKIE['Clementine_debug_div_hide'])) ? 'display: none; ' : 'display: block; '; ?>">
-<?php
+            <ol id="Clementine_debug_ol" style="text-align: left; padding: 0.5em 0; margin: 0; list-style-position: inside; 
+HTML;
+            $debug.= (isset($_COOKIE['Clementine_debug_div_hide']) && ($_COOKIE['Clementine_debug_div_hide'])) ? 'display: none; ' : 'display: block; ';
+            $debug.= '">';
             // affiche les messages par type
             foreach ($types as $type => $libelle) {
                 if (isset(Clementine::$clementine_debug[$type]) && count(Clementine::$clementine_debug[$type])) {
-?>
+                    $debug.= <<<HTML
                     <li style="margin: 3px; border: solid #AAA 3px; padding: 3px; -moz-border-radius: 5px; background-color: #CCC; font-size: 12px; line-height: 1.4em; z-index: 9998">
-                        <strong><?php echo $libelle; ?></strong>
-                        <table style="width: 100%; "<?php echo ($type == 'sql') ? ' class="clementine_debug-dataTables"' : ''; ?>>
-<?php
+                        <strong>
+HTML;
+                    $debug.= $libelle;
+                    $debug.= <<<HTML
+                        </strong>
+                        <table style="width: 100%; "
+HTML;
+                    $debug.= ($type == 'sql') ? ' class="clementine_debug-dataTables"' : '';
+                    $debug.= '>';
                     if (isset(Clementine::$clementine_debug[$type])) {
                         if (isset(Clementine::$clementine_debug[$type][0]) && is_array(Clementine::$clementine_debug[$type][0])) {
                             $titles = array_keys(Clementine::$clementine_debug[$type][0]);
-?>
+                            $debug.= <<<HTML
                             <thead>
                                 <tr>
-<?php
+HTML;
                             foreach ($titles as $title) {
-                                echo '<th>' . $title . '</th>';
+                                $debug.= '<th>' . $title . '</th>';
                             }
-?>
+                            $debug.= <<<HTML
                                 </tr>
                             </thead>
-<?php
+HTML;
                         }
                         if ($type == 'block') {
                             Clementine::$clementine_debug[$type] = array_reverse(Clementine::$clementine_debug[$type]);
@@ -1213,57 +1224,68 @@ class Clementine
                                 $duree_totale_sql += $msg['duree'];
                                 $msg['duree'] = number_format($msg['duree'], 3, ',', ' ') . '&nbsp;ms';
                             }
-?>
-                            <tr style="background-color: #DDD; border: solid #CCC 3px; "><td style="white-space: pre-wrap; padding: 5px; "><?php
+                            $debug.= <<<HTML
+                            <tr style="background-color: #DDD; border: solid #CCC 3px; "><td style="white-space: pre-wrap; padding: 5px; ">
+HTML;
                             if (is_array($msg)) {
-                                echo implode('</td><td style="white-space: pre-wrap; padding: 5px; ">', $msg);
+                                $debug.= implode('</td><td style="white-space: pre-wrap; padding: 5px; ">', $msg);
                             } else {
-                                echo $msg;
+                                $debug.= $msg;
                             }
-?></td></tr>
-<?php
+                            
+                            $debug.= <<<HTML
+</td></tr>
+HTML;
                         }
-?>
+                        $debug.= <<<HTML
                         </table>
                         <table style="width: 100%; ">
-<?php
+HTML;
                         // debug sql : cumul du temps passe en *_query
                         if ($type == 'sql') {
-?>
-                            <tr style="background-color: #DDD; border: solid #CCC 3px; "><td colspan="3" style="padding: 5px; ">
-                                <strong>Durée totale passé en query (hors fetch) : </strong><?php echo number_format($duree_totale_sql, 3, ',', ' '); ?> ms
-                            </td></tr>
-<?php
+                            $debug.= '<tr style="background-color: #DDD; border: solid #CCC 3px; "><td colspan="3" style="padding: 5px; ">';
+                            $debug.= '<strong>Durée totale passé en query (hors fetch) : </strong>';
+                            $debug.= number_format($duree_totale_sql, 3, ',', ' ');
+                            $debug.= ' ms </td></tr>';
                         }
                     }
-?>
+                    $debug.= <<<HTML
                         </table>
                     </li>
-<?php
+HTML;
                 }
             }
             // debug non classe dans $types
             foreach (Clementine::$clementine_debug as $type => $msg) {
                 if (!in_array($type, array_keys($types), true)) {
-?>
+                    $debug.= <<<HTML
                     <li style="margin: 3px; border: solid #AAA 3px; padding: 3px; -moz-border-radius: 5px; background-color: #CCC; font-size: 12px; line-height: 1.4em; z-index: 9998">
-<?php
+HTML;
                     if (is_array($msg)) {
                         foreach ($msg as $message) {
-                            echo $message . '<br />';
+                            $debug.= $message . '<br />';
                         }
                     } else {
-                        echo $msg;
+                        $debug.= $msg;
                     }
-?>
+                    $debug.= <<<HTML
                     </li>
-<?php
+HTML;
                 }
             }
-?>
+            $debug.= <<<HTML
             </ol>
         </div>
-<?php
+HTML;
+            if ($request->INVOCATION_METHOD == 'CLI') {
+                $nbsp = ' ';
+                $nbsp = iconv(mb_internal_encoding(), __PHP_ENCODING__, $nbsp);
+                // contourne le nbsp pour en faire un espace secable
+                $debug = html_entity_decode(str_replace('&nbsp;', $nbsp, $debug), ENT_QUOTES, __PHP_ENCODING__);
+                Clementine::log(preg_replace('@<[^>]*?>@', '', str_replace('<br />', PHP_EOL, $debug)));
+            } else {
+                echo $debug;
+            }
         }
     }
 
@@ -1392,22 +1414,21 @@ class Clementine
                     $error_content_log .= PHP_EOL;
                 }
                 if ($val == 'html') {
-                    $errmsg = strip_tags(str_replace('<br />', PHP_EOL, html_entity_decode($key)));
                     $error_content .= $key;
-                    $error_content_log .= $errmsg;
+                    $error_content_log .= strip_tags(str_replace('<br />', PHP_EOL, html_entity_decode($key, ENT_QUOTES, __PHP_ENCODING__)));
                 } else {
-                    $error_content .= htmlentities($val, ENT_QUOTES, __PHP_ENCODING__);
-                    $error_content_log .= $val;
+                    $error_content .= htmlentities($val, ENT_QUOTES, __PHP_ENCODING__, false);
+                    $error_content_log .= strip_tags(str_replace('<br />', PHP_EOL, html_entity_decode($val, ENT_QUOTES, __PHP_ENCODING__)));
                 }
                 ++$nb_ligne;
             }
         } else {
-            $error_content = htmlentities($errstr, ENT_QUOTES, __PHP_ENCODING__);
-            $error_content_log = "$errstr";
+            $error_content = htmlentities($errstr, ENT_QUOTES, __PHP_ENCODING__, false);
+            $error_content_log = strip_tags(str_replace('<br />', PHP_EOL, html_entity_decode($errstr, ENT_QUOTES, __PHP_ENCODING__)));
         }
 
         if ($errfile) {
-            $error_content .= " <em>in</em> <code>" . htmlentities($errfile, ENT_QUOTES, __PHP_ENCODING__) . ":$errline</code>";
+            $error_content .= " <em>in</em> <code>" . htmlentities($errfile, ENT_QUOTES, __PHP_ENCODING__, false) . ":$errline</code>";
             $error_content_log .= " in $errfile:$errline";
         }
         $error_content .= PHP_EOL;
@@ -1602,11 +1623,14 @@ class Clementine
         case 'green':
             $color = "\033[32m";
             break;
+        case 'warning':
         case 'warn':
         case 'yellow':
             $color = "\033[33m";
             break;
+        case 'fatal':
         case 'error':
+        case 'err':
         case 'red':
             $color = "\033[31m";
             break;
