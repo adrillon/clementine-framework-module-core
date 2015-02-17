@@ -23,7 +23,7 @@ L'héritage dans Clémentine
 * modules découplés => 
 
 ```php
-parent::indexAction($request, $params = null);
+return parent::{__FUNCTION__}($request, $params = null);
 ```
 
 * spécificité pour les blocks 

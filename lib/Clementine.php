@@ -1169,10 +1169,10 @@ class Clementine
                 'overrides'  => 'Modules chargés (et poids)',
                 'sql'        => 'Log des requêtes SQL exécutées');
             $debug = <<<HTML
-        <div id="Clementine_debug_div" style="background: #EEE; font-family: courier; font-size: 14px; padding: 0.5em; -moz-border-radius: 5px; " >
+        <div id="Clementine_debug_div" style="background: transparent; position: absolute; max-width: 100%; top: 100%; right: 0; z-index: 9999; font-family: courier; font-size: 14px; padding: 0.5em; -moz-border-radius: 5px; overflow: hidden; " >
             <div style="text-align: right; ">
             <button
-                style="cursor: pointer;"
+                style="cursor: pointer; box-shadow: 3px 3px 3px rgba(128,128,128,0.5); "
                 onclick='document.getElementById("Clementine_debug_ol").style.display = (parseInt(document.cookie.substring(parseInt("Clementine_debug_div_hide".length) + document.cookie.indexOf("Clementine_debug_div_hide") + 1, parseInt("Clementine_debug_div_hide".length) + document.cookie.indexOf("Clementine_debug_div_hide") + 2)) ? "block" : "none"); document.cookie="Clementine_debug_div_hide=" + escape(parseInt(document.cookie.substring(parseInt("Clementine_debug_div_hide".length) + document.cookie.indexOf("Clementine_debug_div_hide") + 1, parseInt("Clementine_debug_div_hide".length) + document.cookie.indexOf("Clementine_debug_div_hide") + 2)) ? "0" : "1") + "; path=
 HTML;
             $debug.= __BASE_URL__ . "/";
@@ -1187,7 +1187,7 @@ HTML;
             foreach ($types as $type => $libelle) {
                 if (isset(Clementine::$clementine_debug[$type]) && count(Clementine::$clementine_debug[$type])) {
                     $debug.= <<<HTML
-                    <li style="margin: 3px; border: solid #AAA 3px; padding: 3px; -moz-border-radius: 5px; background-color: #CCC; font-size: 12px; line-height: 1.4em; z-index: 9998">
+                    <li style="overflow-x: auto; margin: 3px; border: solid #AAA 3px; padding: 3px; -moz-border-radius: 5px; background-color: #DDD; font-size: 12px; line-height: 1.4em; z-index: 9998">
                         <strong>
 HTML;
                     $debug.= $libelle;
@@ -1228,7 +1228,7 @@ HTML;
                             <tr style="background-color: #DDD; border: solid #CCC 3px; "><td style="white-space: pre-wrap; padding: 5px; ">
 HTML;
                             if (is_array($msg)) {
-                                $debug.= implode('</td><td style="white-space: pre-wrap; padding: 5px; ">', $msg);
+                                $debug.= implode('</td><td style="white-space: pre-wrap; padding: 5px; vertical-align: top; ">', $msg);
                             } else {
                                 $debug.= $msg;
                             }
@@ -1239,7 +1239,6 @@ HTML;
                         }
                         $debug.= <<<HTML
                         </table>
-                        <table style="width: 100%; ">
 HTML;
                         // debug sql : cumul du temps passe en *_query
                         if ($type == 'sql') {
@@ -1250,7 +1249,6 @@ HTML;
                         }
                     }
                     $debug.= <<<HTML
-                        </table>
                     </li>
 HTML;
                 }
@@ -1259,7 +1257,7 @@ HTML;
             foreach (Clementine::$clementine_debug as $type => $msg) {
                 if (!in_array($type, array_keys($types), true)) {
                     $debug.= <<<HTML
-                    <li style="margin: 3px; border: solid #AAA 3px; padding: 3px; -moz-border-radius: 5px; background-color: #CCC; font-size: 12px; line-height: 1.4em; z-index: 9998">
+                    <li style="overflow-x: auto; margin: 3px; border: solid #AAA 3px; padding: 3px; -moz-border-radius: 5px; background-color: #DDD; font-size: 12px; line-height: 1.4em; z-index: 9998">
 HTML;
                     if (is_array($msg)) {
                         foreach ($msg as $message) {
@@ -1434,6 +1432,7 @@ HTML;
         $error_content .= PHP_EOL;
         $backtrace_flags = DEBUG_BACKTRACE_IGNORE_ARGS;
         $nomail = 0;
+        $color = false;
         switch ($errno) {
             case E_ERROR:
                 $error_type = 'Error';
@@ -1673,7 +1672,7 @@ HTML;
         if ($highlight) {
             $dump = highlight_string('<?php ' . $dump . PHP_EOL . '?>', true);
             $dump = preg_replace('@^<code><span style="color: #000000">' . PHP_EOL . '<span style="color: #0000BB">&lt;\?php&nbsp;@', '<code><span style="color: #0000BB">', $dump);
-            $dump = str_replace('<code>', '<code style="display: table; text-align: left; ">', $dump);
+            $dump = str_replace('<code>', '<code style="display: table; text-align: left; background-color: #DDD;">', $dump);
             $dump = preg_replace('@\?&gt;</span>' . PHP_EOL . '</span>' . PHP_EOL . '</code>$@', '</span></code>' . PHP_EOL, $dump);
         } else {
             $dump = htmlentities($dump, ENT_QUOTES, __PHP_ENCODING__);
