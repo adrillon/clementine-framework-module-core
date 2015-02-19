@@ -18,11 +18,12 @@ class Clementine
     // variables utilisees pour que les modules puissent enregistrer dans un endroit centralisé des données
     static public $register = array();
     static private $_register = array(
-        '_handled_errors'             => 0,
-        '_parent_loaded_blocks'       => array(),
+        '_handled_errors' => 0,
+        '_parent_loaded_blocks' => array(),
         '_parent_loaded_blocks_files' => array(),
         '_canGetBlock' => array(),
-        '_forbid_getcontroller' => 0);
+        '_forbid_getcontroller' => 0
+    );
 
     /**
      * __call : selon le modele de surcharge choisi dans ce framework, l'appel de parent::method() ne doit pas planter si la fonction n'existe pas
@@ -54,7 +55,7 @@ class Clementine
 
     /**
      * __construct : selon le modele de surcharge choisi dans ce framework, l'appel de parent::__construct() ne doit pas planter si la fonction n'existe pas
-     * 
+     *
      * @access public
      * @return void
      */
@@ -85,7 +86,9 @@ class Clementine
         $this->populateRequest();
         $request = $this->getRequest();
         $this->hook('before_first_getController');
-        $controller = $this->getController($request->CTRL, array('no_mail_if_404' => true));
+        $controller = $this->getController($request->CTRL, array(
+            'no_mail_if_404' => true
+        ));
         $noblock = false;
         if (!$controller) {
             if (!$erreur_404) {
@@ -99,7 +102,7 @@ class Clementine
         } else {
             $this->hook('before_controller_action');
             // charge le controleur demande dans la requete
-            if (count((array) $controller)) {
+            if (count((array)$controller)) {
                 $action = $request->ACT . 'Action';
                 // appelle la fonction demandee dans la requete
                 if (method_exists($controller, $action)) {
@@ -163,7 +166,7 @@ class Clementine
     public function trigger404($header_already_sent = false)
     {
         if (!$header_already_sent) {
-            if (isset($_SERVER['SERVER_NAME'])) {
+            if (__INVOCATION_METHOD__ == 'URL') {
                 header($_SERVER['SERVER_PROTOCOL'] . ' 404 Not Found', true);
             } else {
                 header('CLI' . ' 404 Not Found', true);
@@ -230,29 +233,52 @@ class Clementine
         // liste les dossiers contenus dans ../app/share
         $modules_weights = array();
         $modules_types = array();
-        $scopes = array('share', 'local');
-        foreach ($scopes as $scope) {
-            $path = dirname(__FILE__) . '/../../../' . $scope . '/';
-            if (!$dh = @opendir($path)) {
-                return false;
+        $scopes = array(
+            'share',
+            'local'
+        );
+        $multisite = array(
+            '.',
+            __SERVER_NAME__
+        );
+        foreach ($multisite as $site) {
+            // gestion des alias
+            if ($site != '.') {
+                $aliases = glob(realpath(dirname(__FILE__) . '/../../../' . $site) . '/alias-*');
+                if (isset($aliases[0])) {
+                    $site = substr(basename($aliases[0]), 6);
+                }
             }
-            while (false !== ($obj = readdir($dh))) {
-                if ($obj == '.' || $obj == '..' || (isset($obj[0]) && $obj[0] == '.')) {
+            foreach ($scopes as $scope) {
+                $appdir = realpath(dirname(__FILE__) . '/../../..');
+                $path = $appdir . '/' . $site . '/' . $scope . '/';
+                if (!$dh = @opendir($path)) {
                     continue;
                 }
-                if (is_dir($path . '/' . $obj)) {
-                    if (isset($modules_weights[$obj])) {
-                        if (__DEBUGABLE__) {
-                            $this->debug_overrides_module_twin($obj);
-                        }
-                        die();
+                while (false !== ($obj = readdir($dh))) {
+                    if ($obj == '.' || $obj == '..' || (isset($obj[0]) && $obj[0] == '.')) {
+                        continue;
                     }
-                    $infos = $this->getModuleInfos($obj);
-                    $modules_weights[$obj] = $infos['weight'];
-                    $modules_types[$obj] = $scope;
+                    if (is_dir($path . '/' . $obj)) {
+                        if (array_key_exists($obj, $modules_weights)) {
+                            $this->debug_overrides_module_twin($obj);
+                            die();
+                        }
+                        $paths = glob($appdir . '/*/*/' . $obj);
+                        if (count($paths) > 1) {
+                            $this->debug_overrides_module_should_be_common($obj, $paths);
+                            die();
+                        }
+                        $infos = $this->getModuleInfos($obj);
+                        $modules_weights[$obj] = $infos['weight'];
+                        $modules_types[$obj] = array(
+                            'scope' => $scope,
+                            'site' => $site
+                        );
+                    }
                 }
+                closedir($dh);
             }
-            closedir($dh);
         }
         array_multisort(array_values($modules_weights), array_keys($modules_weights), $modules_weights);
         if ($only_weights) {
@@ -326,8 +352,8 @@ class Clementine
             // extrait le controleur et l'action, en tenant compte du decalage si le site est multilingue
             if (!isset($request->CTRL) && !isset($request->ACT)) {
                 $decalage = (__LANG_DISPOS__ != __DEFAULT_LANG__) ? 1 : 0;
-                $request->CTRL    = strtolower(preg_replace('/[^a-zA-Z0-9_]/S', '_', strtolower(trim((isset($request_tmp[0 + $decalage]) && strlen(trim($request_tmp[0 + $decalage]))) ? trim($request_tmp[0 + $decalage]) : ''))));
-                $request->ACT     = strtolower(preg_replace('/[^a-zA-Z0-9_]/S', '_', trim((isset($request_tmp[1 + $decalage]) && strlen(trim($request_tmp[1 + $decalage]))) ? trim($request_tmp[1 + $decalage]) : '')));
+                $request->CTRL = strtolower(preg_replace('/[^a-zA-Z0-9_]/S', '_', strtolower(trim((isset($request_tmp[0 + $decalage]) && strlen(trim($request_tmp[0 + $decalage]))) ? trim($request_tmp[0 + $decalage]) : ''))));
+                $request->ACT = strtolower(preg_replace('/[^a-zA-Z0-9_]/S', '_', trim((isset($request_tmp[1 + $decalage]) && strlen(trim($request_tmp[1 + $decalage]))) ? trim($request_tmp[1 + $decalage]) : '')));
                 if (!strlen($request->CTRL)) {
                     $request->CTRL = 'index';
                 }
@@ -342,7 +368,7 @@ class Clementine
                 // URL equivalentes dans les autres langues
                 $currequest = array(
                     'CTRL' => $request->CTRL,
-                    'ACT'  => $request->ACT,
+                    'ACT' => $request->ACT,
                     'ARGS' => $request->ARGS
                 );
                 $curpage = implode('/', $currequest);
@@ -356,7 +382,7 @@ class Clementine
                 // URL equivalente de la page courante
                 $currequest = array(
                     'CTRL' => $request->CTRL,
-                    'ACT'  => $request->ACT,
+                    'ACT' => $request->ACT,
                     'ARGS' => $request->ARGS
                 );
                 $curpage = implode('/', $currequest);
@@ -374,6 +400,7 @@ class Clementine
             $request->POST = Clementine::$register['request']->POST;
             $request->COOKIE = Clementine::$register['request']->COOKIE;
             $request->SESSION = Clementine::$register['request']->SESSION;
+            $request->SERVER = Clementine::$register['request']->SERVER;
             $request->REQUEST = Clementine::$register['request']->REQUEST;
             $request->METHOD = Clementine::$register['request']->METHOD;
             Clementine::$register['request'] = $request;
@@ -390,7 +417,7 @@ class Clementine
     {
         if (!(isset(Clementine::$register['request_uri']) && Clementine::$register['request_uri'])) {
             // selon appel HTTP ou CLI
-            if (isset($_SERVER['SERVER_NAME'])) {
+            if (__INVOCATION_METHOD__ == 'URL') {
                 Clementine::$register['request_uri'] = substr($_SERVER['REQUEST_URI'], (strlen(__BASE_URL__) + 1));
             } else {
                 global $argv;
@@ -402,7 +429,7 @@ class Clementine
                     $action = '';
                     if (isset($ctrl_act[1])) {
                         $action = $ctrl_act[1];
-                        Clementine::$register['request_uri'] .= '/' . $action;
+                        Clementine::$register['request_uri'].= '/' . $action;
                     }
                 }
             }
@@ -420,7 +447,7 @@ class Clementine
      */
     private function _require($file, $data = null, $request = null)
     {
-        require($file);
+        require $file;
     }
 
     /**
@@ -436,17 +463,17 @@ class Clementine
     private function _factory($element, $type, $testonly = 0, $params = null)
     {
         switch ($type) {
-            case 'Model':
-                $type_short = 'model';
-                break;
-            case 'Helper':
-                $type_short = 'helper';
-                break;
-            case 'Controller':
-                $type_short = 'ctrl';
-                break;
-            default:
-                return false;
+        case 'Model':
+            $type_short = 'model';
+            break;
+        case 'Helper':
+            $type_short = 'helper';
+            break;
+        case 'Controller':
+            $type_short = 'ctrl';
+            break;
+        default:
+            return false;
         }
         $element = ucfirst(strtolower($element));
         $elementname = ucfirst($element) . $type;
@@ -460,9 +487,9 @@ class Clementine
                     mkdir(__FILES_ROOT__ . '/app/evals');
                 }
             }
-            foreach ($overrides as $current => $scope) {
+            foreach ($overrides as $current => $override) {
                 $current_class = $current . $elementname;
-                $file_path = __FILES_ROOT__ . '/app/' . $scope . '/' . $current . '/' . $type_short . '/' . $current_class . '.php';
+                $file_path = str_replace('/./', '/', __FILES_ROOT__ . '/app/' . $override['site'] . '/' . $override['scope'] . '/' . $current . '/' . $type_short . '/' . $current_class . '.php');
                 if (file_exists($file_path)) {
                     if (isset($prev)) {
                         $parent_class = $prev . $elementname;
@@ -477,7 +504,7 @@ class Clementine
                         if (defined($adopter)) {
                             if (!class_exists(constant($adopter), false)) {
                                 // strips the "Controller/Model" part
-                                $this->_factory(substr(constant($adopter), 0, - strlen($type)), $type, $testonly, $params);
+                                $this->_factory(substr(constant($adopter), 0, -strlen($type)), $type, $testonly, $params);
                             }
                             $code_to_eval = 'abstract class ' . $current_class . '_Parent extends ' . constant($adopter) . ' {}';
                         } else {
@@ -600,26 +627,28 @@ class Clementine
             $this->getHelper('debug')->debugBlock_init();
         }
         $tmp_path_array = explode('/', $path);
-        $path_array = array((isset($tmp_path_array[0]) && $tmp_path_array[0]) ? $tmp_path_array[0] : 'index',
-                            (isset($tmp_path_array[1]) && $tmp_path_array[1]) ? $tmp_path_array[1] : 'index');
+        $path_array = array(
+            (isset($tmp_path_array[0]) && $tmp_path_array[0]) ? $tmp_path_array[0] : 'index',
+            (isset($tmp_path_array[1]) && $tmp_path_array[1]) ? $tmp_path_array[1] : 'index'
+        );
         $niveau3 = null;
         if (isset($tmp_path_array[2])) {
             $niveau3 = $tmp_path_array[2];
         }
         // prend le bloc du theme le plus haut possible dans la surcharge
-        $reverse = array_reverse($this->getOverrides());
+        $reverses = array_reverse($this->getOverrides());
         if ($load_parent && isset(Clementine::$_register['_parent_loaded_blocks_files'][$path])) {
             $nb_shift = count(Clementine::$_register['_parent_loaded_blocks_files'][$path]);
             for (; $nb_shift; --$nb_shift) {
-                array_shift($reverse);
+                array_shift($reverses);
             }
         }
         $vue_affichee = 0;
         $vue_recursive = 0;
         $module = '';
-        $reverse_keys = array_keys($reverse);
+        $reverse_keys = array_keys($reverses);
         $pos = array_search($ignores, $reverse_keys);
-        foreach ($reverse as $module => $scope) {
+        foreach ($reverses as $module => $reverse) {
             $a_ignorer = 0;
             if (count($ignores)) {
                 // on ignore $module s'il est avant (ou au même rang que) l'element $ignores dans les overrides
@@ -630,11 +659,11 @@ class Clementine
                     }
                 }
             }
-            $file = __FILES_ROOT__ . '/app/' . $scope . '/' . $module . '/view/' . $path_array[0] . '/' . $path_array[1];
+            $file = str_replace('/./', '/', __FILES_ROOT__ . '/app/' . $reverse['site'] . '/' . $reverse['scope'] . '/' . $module . '/view/' . $path_array[0] . '/' . $path_array[1]);
             if ($niveau3) {
-                $file .= '/' . $niveau3;
+                $file.= '/' . $niveau3;
             }
-            $file .= '.php';
+            $file.= '.php';
             $block_exists = file_exists($file);
             if ($block_exists) {
                 $load_block = 0;
@@ -659,7 +688,10 @@ class Clementine
                     Clementine::$_register['_parent_loaded_blocks'][] = $path;
                     // debug special : mise en evidence des blocs charges
                     if (__DEBUGABLE__) {
-                        $this->getHelper('debug')->debugBlock_register_stack($scope, $module, $path, $file, array('ignores' => $ignores, 'is_ignored' => $a_ignorer), $load_parent);
+                        $this->getHelper('debug')->debugBlock_registerStack($reverse, $module, $path, $file, array(
+                            'ignores' => $ignores,
+                            'is_ignored' => $a_ignorer
+                        ), $load_parent);
                     }
                     // semaphore pour eviter les appels a getController depuis un block
                     if (!$testonly && !$a_ignorer) {
@@ -705,7 +737,7 @@ class Clementine
             $found = 0;
         } else if ($vue_affichee && !$vue_recursive) {
             if (__DEBUGABLE__) {
-                $this->getHelper('debug')->debugBlock_dumpStack($scope, $module, $path_array);
+                $this->getHelper('debug')->debugBlock_dumpStack($reverse, $module, $path_array);
             }
         }
         if (!$found) {
@@ -714,7 +746,7 @@ class Clementine
                 // le block n'a pas de parent mais il est adopte
                 $tuteur_path = substr(strtolower(constant($adopter)), 0, -4) . '/' . $path_array[1]; // strips de "view" part
                 if ($niveau3) {
-                    $tuteur_path .= '/' . $niveau3;
+                    $tuteur_path.= '/' . $niveau3;
                 }
                 $found = $this->getBlock($tuteur_path, $data, $request, $ignores, $load_parent, $testonly, $never_display_errors);
             }
@@ -774,7 +806,9 @@ class Clementine
      */
     public function dontGetBlock()
     {
-        return array ('dont_getblock' => true);
+        return array(
+            'dont_getblock' => true
+        );
     }
 
     /**
@@ -873,10 +907,14 @@ class Clementine
     {
         $module = '';
         $class = get_class($this);
-        $types = array('Controller', 'Model', 'Helper');
+        $types = array(
+            'Controller',
+            'Model',
+            'Helper'
+        );
         foreach ($types as $type) {
             if (strpos($class, $type) !== false) {
-                $module = strtolower(substr($class, 0, - strlen($type)));
+                $module = strtolower(substr($class, 0, -strlen($type)));
                 break;
             }
         }
@@ -902,6 +940,23 @@ class Clementine
      */
     public function apply_config()
     {
+        // si appel CLI
+        $usage = 'Usage : /usr/bin/php index.php "http://www.site.com" "ctrl[/action]" "[id=1&query=string]"';
+        if (!isset($_SERVER['SERVER_NAME'])) {
+            global $argv;
+            if (isset($argv[1]) && (stripos($argv[1], 'http://') === 0 || stripos($argv[1], 'https://') === 0)) {
+                define('__INVOCATION_METHOD__', 'CLI');
+                $server_name = preg_replace('@^https?://@i', '', $argv[1]);
+                $server_name = preg_replace('@/.*@', '', $server_name);
+                define('__SERVER_NAME__', $server_name);
+            } else {
+                echo $usage;
+                die();
+            }
+        } else {
+            define('__INVOCATION_METHOD__', 'URL');
+            define('__SERVER_NAME__', $_SERVER['SERVER_NAME']);
+        }
         // charge la config
         $config = $this->_get_config();
         // qq constantes
@@ -912,7 +967,12 @@ class Clementine
             define('DEBUG_BACKTRACE_PROVIDE_OBJECT', 0);
         }
         // definit les constantes necessaires au fonctionnement de l'adoption
-        $adopters = array('model', 'view', 'controller', 'helper');
+        $adopters = array(
+            'model',
+            'view',
+            'controller',
+            'helper'
+        );
         foreach ($adopters as $adopter) {
             if (isset($config['clementine_inherit_' . $adopter]) && is_array($config['clementine_inherit_' . $adopter])) {
                 foreach ($config['clementine_inherit_' . $adopter] as $classname => $parentclassname) {
@@ -954,45 +1014,26 @@ class Clementine
             define('__OS__', strtolower($uname[0]));
             unset($uname);
         }
-        // si appel CLI
-        $usage = 'Usage : /usr/bin/php index.php "http://www.site.com" "ctrl[/action]" "[id=1&query=string]"';
-        if (!isset($_SERVER['SERVER_NAME'])) {
-            global $argv;
-            if (isset($argv[1]) && preg_match('@https?://@', $argv[1])) {
-                define('__WWW_ROOT__', $argv[1]);
-            } else {
-                echo $usage;
-                die();
-            }
-        }
         if (isset($config['clementine_global']['base_url'])) {
             define('__BASE_URL__', $config['clementine_global']['base_url']);
         } else {
             // selon appel HTTP ou CLI
-            if (isset($_SERVER['SERVER_NAME'])) {
-                $tmp = substr(__FILE__, strlen(preg_replace('/\/$/S', '', $_SERVER['DOCUMENT_ROOT'])));
-                $tmp = substr($tmp, 0, - strlen('/app/share/core/lib/Clementine.php'));
+            if (__INVOCATION_METHOD__ == 'URL') {
+                $base_url = substr(__FILE__, strlen(preg_replace('/\/$/S', '', $_SERVER['DOCUMENT_ROOT'])));
+                $base_url = substr($base_url, 0, -strlen('/app/share/core/lib/Clementine.php'));
                 if (__OS__ == 'windows') {
-                    $tmp = str_replace('\\', '/', $tmp);
+                    $base_url = str_replace('\\', '/', $base_url);
                 }
-                define('__BASE_URL__', $tmp);
-                unset ($tmp);
+                define('__BASE_URL__', $base_url);
                 $files_root = preg_replace('@//*@', '/', $_SERVER['DOCUMENT_ROOT'] . __BASE_URL__);
                 if ($files_root != '/') {
                     $files_root = preg_replace('@/$@', '', $files_root);
                 }
                 define('__FILES_ROOT__', $files_root);
             } else {
-                global $argv;
-                if (isset($argv[1]) && preg_match('@https?://@', $argv[1])) {
-                    $tmp = preg_replace('@https?://[^/]+@', '', $argv[1]);
-                    define('__BASE_URL__', $tmp);
-                    unset ($tmp);
-                    define('__FILES_ROOT__', realpath(dirname(__FILE__) . '/../../../../'));
-                } else {
-                    echo $usage;
-                    die();
-                }
+                $base_url = preg_replace('@^https?://[^/]+@i', '', $argv[1]);
+                define('__BASE_URL__', $base_url);
+                define('__FILES_ROOT__', realpath(dirname(__FILE__) . '/../../../../'));
             }
         }
         if (isset($config['clementine_global']['php_encoding'])) {
@@ -1014,21 +1055,20 @@ class Clementine
         if (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS']) {
             $protocol = 'https://';
         }
-        // si appel HTTP
-        if (isset($_SERVER['SERVER_NAME'])) {
-            define('__WWW_ROOT__', $protocol . $_SERVER['SERVER_NAME'] . __BASE_URL__);
-        }
+        define('__WWW_ROOT__', $protocol . __SERVER_NAME__ . __BASE_URL__);
         $overrides = $this->getOverrides();
-        foreach ($overrides as $module => $scope) {
-            define('__WWW_ROOT_'   . strtoupper($module) . '__', __WWW_ROOT__   . '/app/' . $scope . '/' . $module);
-            define('__FILES_ROOT_' . strtoupper($module) . '__', __FILES_ROOT__ . '/app/' . $scope . '/' . $module);
+        foreach ($overrides as $module => $override) {
+            $www_root = __WWW_ROOT__ . '/app/' . $override['site'] . '/' . $override['scope'] . '/' . $module;
+            $files_root = __FILES_ROOT__ . '/app/' . $override['site'] . '/' . $override['scope'] . '/' . $module;
+            define('__WWW_ROOT_' . strtoupper($module) . '__', str_replace('/./', '/', $www_root));
+            define('__FILES_ROOT_' . strtoupper($module) . '__', str_replace('/./', '/', $files_root));
         }
         if (isset($config['clementine_debug']) &&
             !empty($config['clementine_debug']['enabled']) &&
             isset($config['clementine_debug']['allowed_ip']) &&
             ((!$config['clementine_debug']['allowed_ip']) || (
-                (!isset($_SERVER['SERVER_NAME']) && in_array('127.0.0.1', explode(',', $config['clementine_debug']['allowed_ip']))) || 
-                (isset($_SERVER['REMOTE_ADDR']) && in_array($_SERVER['REMOTE_ADDR'], explode(',', $config['clementine_debug']['allowed_ip'])))
+                (__INVOCATION_METHOD__ == 'CLI' && in_array('127.0.0.1', explode(',', $config['clementine_debug']['allowed_ip']))) || 
+                (__INVOCATION_METHOD__ == 'URL' && in_array($_SERVER['REMOTE_ADDR'], explode(',', $config['clementine_debug']['allowed_ip'])))
             ))
         ) {
             define('__DEBUGABLE__', '1');
@@ -1043,8 +1083,14 @@ class Clementine
         if (Clementine::$config['clementine_debug']['error_log']) {
             ini_set('error_log', Clementine::$config['clementine_debug']['error_log']);
         }
-        set_error_handler(array('Clementine', 'clementine_error_handler'), $error_reporting);
-        register_shutdown_function(array('Clementine', 'clementine_shutdown_handler'));
+        set_error_handler(array(
+            'Clementine',
+            'clementine_error_handler'
+        ), $error_reporting);
+        register_shutdown_function(array(
+            'Clementine',
+            'clementine_shutdown_handler'
+        ));
         // definit la langue par defaut
         $lang_dispos = array();
         if (isset($config['clementine_global']['lang'])) {
@@ -1067,7 +1113,7 @@ class Clementine
         ini_set('session.use_only_cookies', 1);
         ini_set('session.gc_divisor', Clementine::$config['clementine_global']['gc_divisor']);
         // selon appel CLI, pas de garbage collection
-        if (!isset($_SERVER['SERVER_NAME'])) {
+        if (__INVOCATION_METHOD__ == 'CLI') {
             ini_set('session.gc_probability', 0);
         } else {
             ini_set('session.gc_probability', Clementine::$config['clementine_global']['gc_probability']);
@@ -1091,12 +1137,12 @@ class Clementine
         }
         if (__DEBUGABLE__ && Clementine::$config['clementine_debug']['overrides']) {
             $message = '<table width="100%" style="font-size: 12px; line-height: 1.4em; text-align: left; "><thead><tr><th>module</th><th>version</th><th>type</th><th>poids</th></tr></thead><tbody>';
-            $reverse_overrides = array_reverse($overrides);
-            foreach ($reverse_overrides as $module => $scope) {
+            $reverses = array_reverse($overrides);
+            foreach ($reverses as $module => $reverse) {
                 $infos = $this->getModuleInfos($module);
-                $message .= "<tr><td>$module</td><td>" . $infos['version'] . "</td><td>$overrides[$module]</td><td>" . $infos['weight'] . "</td></tr>";
+                $message.= "<tr><td>$module</td><td>" . $infos['version'] . "</td><td>{$overrides[$module]['scope']}</td><td>" . $infos['weight'] . "</td></tr>";
             }
-            $message .= '</tbody></table>';
+            $message.= '</tbody></table>';
             Clementine::$clementine_debug['overrides'][] = $message;
         }
         Clementine::$config = $config;
@@ -1118,8 +1164,8 @@ class Clementine
             $overrides = $this->getOverrides();
             $app_path = dirname(__FILE__) . '/../../../';
             $config = array();
-            foreach ($overrides as $module => $scope) {
-                $filepath = $app_path . $scope . '/' . $module . '/etc/config.ini';
+            foreach ($overrides as $module => $override) {
+                $filepath = $app_path . $override['site'] . '/' . $override['scope'] . '/' . $module . '/etc/config.ini';
                 if (is_file($filepath)) {
                     // php < 5.3 compatibility
                     if (version_compare(PHP_VERSION, '5.3.0') >= 0) {
@@ -1160,14 +1206,15 @@ class Clementine
         $request = $this->getRequest();
         if (__DEBUGABLE__ && !$request->AJAX && !defined('__NO_DEBUG_DIV__')) {
             $types = array(
-                'hook'       => 'Hooks appelés sur cette page',
-                'ctrl'       => 'Contrôleurs de cette page',
-                'model'      => 'Modèles chargés sur cette page',
-                'block'      => 'Blocks chargés sur cette page',
-                'helper'     => 'Helpers chargés sur cette page',
-                'heritage'   => '<span style="color: red">Sanity-check sur les héritages : pour éviter les conflits entre surcharges</span>',
-                'overrides'  => 'Modules chargés (et poids)',
-                'sql'        => 'Log des requêtes SQL exécutées');
+                'hook' => 'Hooks appelés sur cette page',
+                'ctrl' => 'Contrôleurs de cette page',
+                'model' => 'Modèles chargés sur cette page',
+                'block' => 'Blocks chargés sur cette page',
+                'helper' => 'Helpers chargés sur cette page',
+                'heritage' => '<span style="color: red">Sanity-check sur les héritages : pour éviter les conflits entre surcharges</span>',
+                'overrides' => 'Modules chargés (et poids)',
+                'sql' => 'Log des requêtes SQL exécutées'
+            );
             $debug = <<<HTML
         <div id="Clementine_debug_div" style="background: transparent; position: absolute; max-width: 100%; top: 100%; right: 0; z-index: 9999; font-family: courier; font-size: 14px; padding: 0.5em; -moz-border-radius: 5px; overflow: hidden; " >
             <div style="text-align: right; ">
@@ -1220,8 +1267,8 @@ HTML;
                         foreach (Clementine::$clementine_debug[$type] as $msg) {
                             // debug sql : cumul du temps passe en *_query et conversion de microsecondes a millisecondes
                             if ($type == 'sql') {
-                                $msg['duree'] *= 1000;
-                                $duree_totale_sql += $msg['duree'];
+                                $msg['duree']*= 1000;
+                                $duree_totale_sql+= $msg['duree'];
                                 $msg['duree'] = number_format($msg['duree'], 3, ',', ' ') . '&nbsp;ms';
                             }
                             $debug.= <<<HTML
@@ -1232,7 +1279,6 @@ HTML;
                             } else {
                                 $debug.= $msg;
                             }
-                            
                             $debug.= <<<HTML
 </td></tr>
 HTML;
@@ -1313,9 +1359,11 @@ HTML;
         if (__DEBUGABLE__ && Clementine::$config['clementine_debug'][$type]) {
             // affiche dans le tableau $this->debug l'ordre de surcharge pour ce controleur/modele
             $tmp = $element;
-            $elements_stack = array(get_class($tmp));
+            $elements_stack = array(
+                get_class($tmp)
+            );
             for (; $parent = get_parent_class($tmp); $tmp = $parent) {
-                if (substr($parent, - (strlen($type . '_Parent'))) == $type . '_Parent') {
+                if (substr($parent, -(strlen($type . '_Parent'))) == $type . '_Parent') {
                     continue;
                 }
                 $elements_stack[] = $parent;
@@ -1331,10 +1379,10 @@ HTML;
                 foreach ($elements_stack as $step) {
                     if (isset($oldstep)) {
                         $differences = array_diff(get_class_methods($step), get_class_methods($oldstep));
-                        $module_name = substr($step, 0, - strlen($final_name));
+                        $module_name = substr($step, 0, -strlen($final_name));
                         foreach ($differences as $diff) {
                             if (strpos($diff, $module_name) !== 0) {
-                                if ($type == 'Model' || ((substr($diff, - strlen('Action')) !== 'Action') && ($diff !== '__construct'))) {
+                                if ($type == 'Model' || ((substr($diff, -strlen('Action')) !== 'Action') && ($diff !== '__construct'))) {
                                     Clementine::$clementine_debug['heritage'][$type][] = '<strong>' . $step . '::' . $diff . '()</strong> n\'est pas une surcharge et devrait donc s\'appeler <strong>' . $module_name . ucfirst($diff) . '()</strong>';
                                 }
                             }
@@ -1348,9 +1396,18 @@ HTML;
 
     public function debug_overrides_module_twin($module)
     {
-        if (__DEBUGABLE__) {
-            echo "<br />\n" . '<strong>Clementine fatal error</strong>: directories <em>app/share/' . $module . '</em> and <em>app/local/' . $module . '</em> can not coexist';
-        }
+        // __DEBUGABLE__ n'est pas encore defini, on ne peut pas l'utiliser
+        $errmsg = "<br />\n" . '<strong>Clementine fatal error</strong>: directories <em>app/share/' . $module . '</em> and <em>app/local/' . $module . '</em> can not coexist';
+        error_log($errmsg);
+        echo $errmsg;
+    }
+
+    public function debug_overrides_module_should_be_common($module, $paths)
+    {
+        // __DEBUGABLE__ n'est pas encore defini, on ne peut pas l'utiliser
+        $errmsg = "<br />\n" . '<strong>Clementine fatal error</strong>: directory <em>' . $module . '</em> was found in multiple paths (<em>' . implode('</em>, <em>', $paths) . '</em>). It should reside in <em>app/share</em> or <em>app/local</em>';
+        error_log($errmsg);
+        echo $errmsg;
     }
 
     /**
@@ -1363,20 +1420,36 @@ HTML;
     public function getModuleInfos($module)
     {
         $module = preg_replace('/[^a-zA-Z0-9_]/S', '', $module);
-        $types = array('share', 'local');
-        foreach ($types as $type) {
-            $filepath = realpath(dirname(__FILE__) . '/../../../' . $type . '/' . $module . '/etc/module.ini');
-            if (is_file($filepath)) {
-                $config = array();
-                // php < 5.3 compatibility
-                if (version_compare(PHP_VERSION, '5.3.0') >= 0) {
-                    $infos = parse_ini_file($filepath, true, INI_SCANNER_RAW);
-                } else {
-                    $infos = parse_ini_file($filepath, true);
+        $scopes = array(
+            'share',
+            'local'
+        );
+        $multisite = array(
+            '.',
+            __SERVER_NAME__
+        );
+        foreach ($multisite as $site) {
+            // gestion des alias
+            if ($site != '.') {
+                $aliases = glob(realpath(dirname(__FILE__) . '/../../../' . $site) . '/alias-*');
+                if (isset($aliases[0])) {
+                    $site = substr(basename($aliases[0]), 6);
                 }
-                if (isset($infos['weight'])) {
-                    $infos['weight'] = (float) $infos['weight'];
-                    return $infos;
+            }
+            foreach ($scopes as $scope) {
+                $filepath = realpath(dirname(__FILE__) . '/../../../' . $site . '/' . $scope . '/' . $module . '/etc/module.ini');
+                if (is_file($filepath)) {
+                    $config = array();
+                    // php < 5.3 compatibility
+                    if (version_compare(PHP_VERSION, '5.3.0') >= 0) {
+                        $infos = parse_ini_file($filepath, true, INI_SCANNER_RAW);
+                    } else {
+                        $infos = parse_ini_file($filepath, true);
+                    }
+                    if (isset($infos['weight'])) {
+                        $infos['weight'] = (float)$infos['weight'];
+                        return $infos;
+                    }
                 }
             }
         }
@@ -1385,17 +1458,17 @@ HTML;
 
     /**
      * clementine_error_handler : handle php errors (display, send by mail...)
-     * 
-     * @param mixed $errno 
-     * @param mixed $errstr 
-     * @param mixed $errfile 
-     * @param mixed $errline 
+     *
+     * @param mixed $errno
+     * @param mixed $errstr
+     * @param mixed $errfile
+     * @param mixed $errline
      * @access public
      * @return void
      */
     public static function clementine_error_handler($errno, $errstr, $errfile, $errline)
     {
-        if (0 == error_reporting ()) {
+        if (0 == error_reporting()) {
             // error reporting is currently turned off or suppressed with @
             return false;
         }
@@ -1408,15 +1481,15 @@ HTML;
             $nb_ligne = 0;
             foreach ($errstr as $key => $val) {
                 if ($nb_ligne) {
-                    $error_content .= '<br />' . PHP_EOL;
-                    $error_content_log .= PHP_EOL;
+                    $error_content.= '<br />' . PHP_EOL;
+                    $error_content_log.= PHP_EOL;
                 }
                 if ($val == 'html') {
-                    $error_content .= $key;
-                    $error_content_log .= strip_tags(str_replace('<br />', PHP_EOL, html_entity_decode($key, ENT_QUOTES, __PHP_ENCODING__)));
+                    $error_content.= $key;
+                    $error_content_log.= strip_tags(str_replace('<br />', PHP_EOL, html_entity_decode($key, ENT_QUOTES, __PHP_ENCODING__)));
                 } else {
-                    $error_content .= htmlentities($val, ENT_QUOTES, __PHP_ENCODING__, false);
-                    $error_content_log .= strip_tags(str_replace('<br />', PHP_EOL, html_entity_decode($val, ENT_QUOTES, __PHP_ENCODING__)));
+                    $error_content.= htmlentities($val, ENT_QUOTES, __PHP_ENCODING__, false);
+                    $error_content_log.= strip_tags(str_replace('<br />', PHP_EOL, html_entity_decode($val, ENT_QUOTES, __PHP_ENCODING__)));
                 }
                 ++$nb_ligne;
             }
@@ -1424,101 +1497,100 @@ HTML;
             $error_content = htmlentities($errstr, ENT_QUOTES, __PHP_ENCODING__, false);
             $error_content_log = strip_tags(str_replace('<br />', PHP_EOL, html_entity_decode($errstr, ENT_QUOTES, __PHP_ENCODING__)));
         }
-
         if ($errfile) {
-            $error_content .= " <em>in</em> <code>" . htmlentities($errfile, ENT_QUOTES, __PHP_ENCODING__, false) . ":$errline</code>";
-            $error_content_log .= " in $errfile:$errline";
+            $error_content.= " <em>in</em> <code>" . htmlentities($errfile, ENT_QUOTES, __PHP_ENCODING__, false) . ":$errline</code>";
+            $error_content_log.= " in $errfile:$errline";
         }
-        $error_content .= PHP_EOL;
+        $error_content.= PHP_EOL;
         $backtrace_flags = DEBUG_BACKTRACE_IGNORE_ARGS;
         $nomail = 0;
         $color = false;
         switch ($errno) {
-            case E_ERROR:
-                $error_type = 'Error';
-                $backtrace_flags = 0;
-                $color = "\033[31m";
-                $fatal = 1;
-                break;
-            case E_WARNING:
-                $error_type = 'Warning';
-                $color = "\033[33m";
-                break;
-            case E_PARSE:
-                $error_type = 'Parse error';
-                $backtrace_flags = 0;
-                $color = "\033[31m";
-                $fatal = 1;
-                break;
-            case E_NOTICE:
-                $error_type = 'Notice';
-                break;
-            case E_CORE_ERROR:
-                $error_type = 'Core error';
-                $color = "\033[31m";
-                $fatal = 1;
-                break;
-            case E_CORE_WARNING:
-                $error_type = 'Core warning';
-                $color = "\033[33m";
-                break;
-            case E_COMPILE_ERROR:
-                $error_type = 'Compile error';
-                $color = "\033[31m";
-                $fatal = 1;
-                break;
-            case E_COMPILE_WARNING:
-                $error_type = 'Compile warning';
-                $color = "\033[33m";
-                break;
-            case E_USER_ERROR:
-                $error_type = 'User error';
-                $color = "\033[31m";
-                $fatal = 1;
-                break;
-            case 'E_USER_WARNING_NOMAIL':
-            case E_USER_WARNING:
-                $error_type = 'User warning';
-                if ($errno == 'E_USER_WARNING_NOMAIL') {
-                    $errno == E_USER_WARNING;
-                    $nomail = 1;
-                }
-                $color = "\033[33m";
-                break;
-            case E_USER_NOTICE:
-                $error_type = 'User notice';
-                break;
-            case E_STRICT:
-                $error_type = 'Strict';
-                break;
-            case E_RECOVERABLE_ERROR:
-                $error_type = 'Recoverable error';
-                break;
-            case E_DEPRECATED:
-                $error_type = 'Deprecated';
-                break;
-            case E_USER_DEPRECATED:
-                $error_type = 'User deprecated';
-                break;
-            case E_ALL:
-                $error_type = 'Unspecified error';
-                $color = "\033[31m";
-                $fatal = 1;
-                break;
-            default:
-                $error_type = 'Unknown error';
-                $color = "\033[31m";
-                $fatal = 1;
-                break;
+        case E_ERROR:
+            $error_type = 'Error';
+            $backtrace_flags = 0;
+            $color = "\033[31m";
+            $fatal = 1;
+            break;
+        case E_WARNING:
+            $error_type = 'Warning';
+            $color = "\033[33m";
+            break;
+        case E_PARSE:
+            $error_type = 'Parse error';
+            $backtrace_flags = 0;
+            $color = "\033[31m";
+            $fatal = 1;
+            break;
+        case E_NOTICE:
+            $error_type = 'Notice';
+            break;
+        case E_CORE_ERROR:
+            $error_type = 'Core error';
+            $color = "\033[31m";
+            $fatal = 1;
+            break;
+        case E_CORE_WARNING:
+            $error_type = 'Core warning';
+            $color = "\033[33m";
+            break;
+        case E_COMPILE_ERROR:
+            $error_type = 'Compile error';
+            $color = "\033[31m";
+            $fatal = 1;
+            break;
+        case E_COMPILE_WARNING:
+            $error_type = 'Compile warning';
+            $color = "\033[33m";
+            break;
+        case E_USER_ERROR:
+            $error_type = 'User error';
+            $color = "\033[31m";
+            $fatal = 1;
+            break;
+        case 'E_USER_WARNING_NOMAIL':
+        case E_USER_WARNING:
+            $error_type = 'User warning';
+            if ($errno == 'E_USER_WARNING_NOMAIL') {
+                $errno == E_USER_WARNING;
+                $nomail = 1;
+            }
+            $color = "\033[33m";
+            break;
+        case E_USER_NOTICE:
+            $error_type = 'User notice';
+            break;
+        case E_STRICT:
+            $error_type = 'Strict';
+            break;
+        case E_RECOVERABLE_ERROR:
+            $error_type = 'Recoverable error';
+            break;
+        case E_DEPRECATED:
+            $error_type = 'Deprecated';
+            break;
+        case E_USER_DEPRECATED:
+            $error_type = 'User deprecated';
+            break;
+        case E_ALL:
+            $error_type = 'Unspecified error';
+            $color = "\033[31m";
+            $fatal = 1;
+            break;
+        default:
+            $error_type = 'Unknown error';
+            $color = "\033[31m";
+            $fatal = 1;
+            break;
         }
         // TODO: les onclick et les styles inline c'est pas terrible mais c'est autonome... trouver une meilleure solution
         $prestyle = 'background: #EEE; border: 2px solid #333; border-radius: 5px; padding: 1em; margin: 1em; text-align: left; font-family: Courier New; font-size: 13px; line-height: 1.4em; ';
         $strongstyle = 'cursor: pointer; background: #999999; border: 1px solid #555555; border-radius: 1em 1em 1em 1em; box-shadow: 1px 3px 4px rgba(64, 64, 64, 0.3); color: #FFFFFF; font-size: 10px; font-weight: bold; padding: 0.3em 1em; text-shadow: 0 1px 1px #000000; display: inline-block; margin: 0 0 5px 5px; position: relative; z-index: 999; ';
         $togglepre = 'onclick="var elt = this.nextSibling; var current_display = (elt.currentStyle ? elt.currentStyle[\'display\'] : document.defaultView.getComputedStyle(elt,null).getPropertyValue(\'display\')); if (typeof(this.previous_display) == \'undefined\') { this.previous_display = (current_display != \'none\' ? current_display : \'block\') }; elt.style.display = (current_display != \'none\' ? \'none\' : this.previous_display); return false; "';
-        $display_error  = PHP_EOL . '<br />' . PHP_EOL . '<strong style="' . $strongstyle . '; background-color: #666666; margin: 0 5px 5px 0; " ' . $togglepre .'>#' . Clementine::$_register['_handled_errors'] . ' ' . $error_type . PHP_EOL . '</strong><div style="position: relative; z-index: 999; display: inline; background-color: #FFF; color: #000; font-family: serif; ">';
+        $display_error = PHP_EOL . '<br />' . PHP_EOL . '<strong style="' . $strongstyle . '; background-color: #666666; margin: 0 5px 5px 0; " ' . $togglepre . '>#' . Clementine::$_register['_handled_errors'] . ' ' . $error_type . PHP_EOL . '</strong><div style="position: relative; z-index: 999; display: inline; background-color: #FFF; color: #000; font-family: serif; ">';
         $display_error_log = PHP_EOL . '#' . Clementine::$_register['_handled_errors'] . ' ' . $error_type . ': ';
-        $display_error .= PHP_EOL . $error_content;
-        $display_error_log .= $error_content_log;
+        $display_error.= PHP_EOL . $error_content;
+        $display_error_log.= $error_content_log;
         if ($errfile && $errline) {
             $highlighted_content = highlight_string(file_get_contents($errfile), true);
             $highlighted_content = preg_replace('@<br /></span>@', '</span><br />' . PHP_EOL, $highlighted_content);
@@ -1526,41 +1598,40 @@ HTML;
             $from = max(0, $errline - 7);
             $content = array_slice($content, $from, 10);
             $prestyle = 'background: #FFF; border: 2px solid #333; border-radius: 5px; padding: 1em; margin: 1em; text-align: left; font-family: Courier New; font-size: 13px; line-height: 1.4em; overflow: auto; white-space: nowrap; ';
-            // $display_error .= '<pre style="' . $prestyle . '">';
-            $display_error .= '<strong style="' . $strongstyle . '" ' . $togglepre . '>' . PHP_EOL . 'Code dump' . PHP_EOL . '</strong>';
-            $display_error .= '<pre class="clementine_error_handler_error" style="' . $prestyle . '">';
+            $display_error.= '<strong style="' . $strongstyle . '" ' . $togglepre . '>' . PHP_EOL . 'Code dump' . PHP_EOL . '</strong>';
+            $display_error.= '<pre class="clementine_error_handler_error" style="' . $prestyle . '">';
             $nb = ($from + 1);
             foreach ($content as $line) {
                 if ($nb == $errline) {
-                    $display_error .= '<strong>';
+                    $display_error.= '<strong>';
                 }
-                $display_error .= str_pad($nb, 2, '0', STR_PAD_LEFT) . '    ' . '<span>' .  $line . '</span>';
+                $display_error.= str_pad($nb, 2, '0', STR_PAD_LEFT) . '    ' . '<span>' . $line . '</span>';
                 if ($nb == $errline) {
-                    $display_error .= '</strong>';
+                    $display_error.= '</strong>';
                 }
-                $display_error .= '<br />' . PHP_EOL;
+                $display_error.= '<br />' . PHP_EOL;
                 ++$nb;
             }
-            $display_error .= '</pre>';
+            $display_error.= '</pre>';
         }
-        $debug_message  = $display_error;
-        $request_dump    = Clementine::dump(Clementine::$register['request'], true);
-        $server_dump     = Clementine::dump($_SERVER, true);
-        $debug_backtrace = Clementine::dump(debug_backtrace($backtrace_flags), true);
-        $debug_message  = $display_error;
-        $debug_message .= PHP_EOL . '<strong style="' . $strongstyle . '" ' . $togglepre . '>' . PHP_EOL . 'Request dump' . PHP_EOL . '</strong>';
-        $debug_message .= '<pre class="clementine_error_handler_error" style="' . $prestyle . '">' . $request_dump . '</pre>';
-        $debug_message .= PHP_EOL . '<strong style="' . $strongstyle . '" ' . $togglepre . '>' . PHP_EOL . 'Server dump' . PHP_EOL . '</strong>';
-        $debug_message .= '<pre class="clementine_error_handler_error" style="' . $prestyle . '">' . $server_dump . '</pre>';
-        $debug_message .= PHP_EOL . '<strong style="' . $strongstyle . '" ' . $togglepre . '>' . PHP_EOL . 'Debug_backtrace' . PHP_EOL . '</strong>';
-        $debug_message .= '<pre class="clementine_error_handler_error" style="' . $prestyle . '">' . $debug_backtrace . '</pre>';
-        $debug_message .= '</div>';
+        $debug_message = $display_error;
+        $request_dump = Clementine::dump(Clementine::$register['request'], true);
+        $server_dump = Clementine::dump($_SERVER, true);
+        $debug_backtrace = Clementine::dump(debug_backtrace($backtrace_flags) , true);
+        $debug_message = $display_error;
+        $debug_message.= PHP_EOL . '<strong style="' . $strongstyle . '" ' . $togglepre . '>' . PHP_EOL . 'Request dump' . PHP_EOL . '</strong>';
+        $debug_message.= '<pre class="clementine_error_handler_error" style="' . $prestyle . '">' . $request_dump . '</pre>';
+        $debug_message.= PHP_EOL . '<strong style="' . $strongstyle . '" ' . $togglepre . '>' . PHP_EOL . 'Server dump' . PHP_EOL . '</strong>';
+        $debug_message.= '<pre class="clementine_error_handler_error" style="' . $prestyle . '">' . $server_dump . '</pre>';
+        $debug_message.= PHP_EOL . '<strong style="' . $strongstyle . '" ' . $togglepre . '>' . PHP_EOL . 'Debug_backtrace' . PHP_EOL . '</strong>';
+        $debug_message.= '<pre class="clementine_error_handler_error" style="' . $prestyle . '">' . $debug_backtrace . '</pre>';
+        $debug_message.= '</div>';
         if (__DEBUGABLE__ && Clementine::$config['clementine_debug']['display_errors']) {
             // si appel non CLI
-            if (isset($_SERVER['SERVER_NAME'])) {
+            if (__INVOCATION_METHOD__ == 'URL') {
                 echo '<style type="text/css">' . PHP_EOL . '.clementine_error_handler_error {' . PHP_EOL . 'display: none;' . PHP_EOL . '}' . PHP_EOL . '</style>' . PHP_EOL . $debug_message . PHP_EOL . PHP_EOL;
             } else {
-                echo html_entity_decode(strip_tags(preg_replace('@<br />' . PHP_EOL . '?@', PHP_EOL, $debug_message)), ENT_QUOTES, __PHP_ENCODING__);
+                echo html_entity_decode(strip_tags(preg_replace('@<br />' . PHP_EOL . '?@', PHP_EOL, $debug_message)) , ENT_QUOTES, __PHP_ENCODING__);
             }
         }
         if (!$nomail &&
@@ -1571,25 +1642,25 @@ HTML;
             // MIME BOUNDARY
             $mime_boundary = "---- " . md5(time());
             // MAIL HEADERS
-            $headers  = 'From: "' . Clementine::$config['clementine_global']['email_exp'] . "\n";
-            $headers .= "MIME-Version: 1.0\n";
-            $headers .= "Content-Type: multipart/alternative; boundary=\"$mime_boundary\"\n";
+            $headers = 'From: "' . Clementine::$config['clementine_global']['email_exp'] . "\n";
+            $headers.= "MIME-Version: 1.0\n";
+            $headers.= "Content-Type: multipart/alternative; boundary=\"$mime_boundary\"\n";
             // TEXT EMAIL PART
             $message = "\n--$mime_boundary\n";
-            $message .= "Content-Type: text/plain; charset=" . __PHP_ENCODING__ . "\n";
-            $message .= "Content-Transfer-Encoding: 8bit\n\n";
-            $message .= html_entity_decode(strip_tags($debug_message), ENT_QUOTES, __PHP_ENCODING__);
+            $message.= "Content-Type: text/plain; charset=" . __PHP_ENCODING__ . "\n";
+            $message.= "Content-Transfer-Encoding: 8bit\n\n";
+            $message.= html_entity_decode(strip_tags($debug_message) , ENT_QUOTES, __PHP_ENCODING__);
             // HTML EMAIL PART
-            $message .= "\n--$mime_boundary\n";
-            $message .= "Content-Type: text/html; charset=" . __PHP_ENCODING__ . "\n";
-            $message .= "Content-Transfer-Encoding: 8bit\n\n";
-            $message .= "<html>\n";
-            $message .= "<body>\n";
-            $message .= $debug_message;
-            $message .= "</body>\n";
-            $message .= "</html>\n";
+            $message.= "\n--$mime_boundary\n";
+            $message.= "Content-Type: text/html; charset=" . __PHP_ENCODING__ . "\n";
+            $message.= "Content-Transfer-Encoding: 8bit\n\n";
+            $message.= "<html>\n";
+            $message.= "<body>\n";
+            $message.= $debug_message;
+            $message.= "</body>\n";
+            $message.= "</html>\n";
             // FINAL BOUNDARY
-            $message .= "\n--$mime_boundary--\n\n";
+            $message.= "\n--$mime_boundary--\n\n";
             // SEND MAIL
             @mail(
                 Clementine::$config['clementine_global']['email_dev'],
@@ -1609,15 +1680,16 @@ HTML;
 
     /**
      * log : error_log colored messages
-     * 
+     *
      * @param mixed $message : message to log
      * @param mixed $color : custom color code, or keyword in ("info", "warn", "error", "red", "greed", "blue", "yellow")
      * @access public
      * @return void
      */
-    public static function log($message, $color = "") {
+    public static function log($message, $color = "")
+    {
         $nocolor = "\e[0m";
-        switch($color) {
+        switch ($color) {
         case 'info':
         case 'green':
             $color = "\033[32m";
@@ -1638,7 +1710,7 @@ HTML;
             break;
         }
         if ($color) {
-            $message .= $nocolor;
+            $message.= $nocolor;
         }
         error_log($color . $message);
     }
@@ -1653,9 +1725,9 @@ HTML;
 
     /**
      * dump : prints developer-readable information about a variable
-     * 
-     * @param mixed $thing 
-     * @param mixed $return 
+     *
+     * @param mixed $thing
+     * @param mixed $return
      * @static
      * @access public
      * @return void
@@ -1689,21 +1761,21 @@ HTML;
 class ClementineRequest
 {
     public $allowed_request_methods = array(
-        'HEAD'      => '',
-        'POST'      => '',
-        'OPTIONS'   => '',
-        'CONNECT'   => '',
-        'TRACE'     => '',
-        'PUT'       => '',
-        'DELETE'    => ''
+        'HEAD' => '',
+        'POST' => '',
+        'OPTIONS' => '',
+        'CONNECT' => '',
+        'TRACE' => '',
+        'PUT' => '',
+        'DELETE' => ''
     );
 
     public function __construct()
     {
         $this->METHOD = 'GET';
-        $this->INVOCATION_METHOD = 'URL';
+        $this->INVOCATION_METHOD = __INVOCATION_METHOD__;
         // si appel en CLI, on reconstruit _GET a partir de argv[3]
-        if (!isset($_SERVER['SERVER_NAME'])) {
+        if ($this->INVOCATION_METHOD == 'CLI') {
             global $argv;
             if (isset($argv[3])) {
                 $tmp_GET_pairs = explode('&', $argv[3]);
@@ -1718,7 +1790,6 @@ class ClementineRequest
             }
             // si appel en CLI, on considère qu'on est en local
             $_SERVER['REMOTE_ADDR'] = '127.0.0.1';
-            $this->INVOCATION_METHOD = 'CLI';
         }
         if (isset($_SERVER['REQUEST_METHOD']) && isset($this->allowed_request_methods[$_SERVER['REQUEST_METHOD']])) {
             $this->METHOD = $_SERVER['REQUEST_METHOD'];
@@ -1741,6 +1812,7 @@ class ClementineRequest
             $this->REQUEST = $_REQUEST;
         }
         $this->SESSION = $_SESSION;
+        $this->SERVER = $_SERVER;
     }
 
     /**
@@ -1773,7 +1845,7 @@ class ClementineRequest
      * @access public
      * @return void
      */
-    public function map_url ($from_expreg, $to, $redirection_http = null)
+    public function map_url($from_expreg, $to, $redirection_http = null)
     {
         if (!(isset(Clementine::$register['request']) && isset(Clementine::$register['request']->CTRL))) {
             // multilingue : separe l'url demandee et le prefixe langue
@@ -1810,7 +1882,7 @@ class ClementineRequest
             if (Clementine::$register['request_uri'] != $old_request_uri) {
                 if ($redirection_http) {
                     // si appel en CLI on affiche un message à la place
-                    if (!isset($_SERVER['SERVER_NAME'])) {
+                    if (__INVOCATION_METHOD__ == 'CLI') {
                         echo ('Redirects with code ' . $redirection_http . ' to: ' . __WWW_ROOT__ . '/' . Clementine::$register['request_uri']);
                     } else {
                         header('Location: ' . __WWW_ROOT__ . '/' . Clementine::$register['request_uri'], true, $redirection_http);
@@ -1841,7 +1913,7 @@ class ClementineRequest
      * @access public
      * @return void
      */
-    public function canonical_url ($from, $to)
+    public function canonical_url($from, $to)
     {
         $this->map_url('^' . $to . '(\?.*)*$', $from . '\\1', 301);
         $this->map_url('^' . $from . '(\?.*)*$', $to . '\\1');
@@ -1851,8 +1923,8 @@ class ClementineRequest
     {
         // overwrite options
         $params = array_merge($options, array(
-            'type'  => $type,
-            'key'   => $key,
+            'type' => $type,
+            'key' => $key,
             'array' => $this->GET,
         ));
         return $this->getFromGPC($params);
@@ -1862,8 +1934,8 @@ class ClementineRequest
     {
         // overwrite options
         $params = array_merge($options, array(
-            'type'  => $type,
-            'key'   => $key,
+            'type' => $type,
+            'key' => $key,
             'array' => $this->POST,
         ));
         return $this->getFromGPC($params);
@@ -1873,8 +1945,8 @@ class ClementineRequest
     {
         // overwrite options
         $params = array_merge($options, array(
-            'type'  => $type,
-            'key'   => $key,
+            'type' => $type,
+            'key' => $key,
             'array' => $this->COOKIE,
         ));
         return $this->getFromGPC($params);
@@ -1884,9 +1956,20 @@ class ClementineRequest
     {
         // overwrite options
         $params = array_merge($options, array(
-            'type'  => $type,
-            'key'   => $key,
+            'type' => $type,
+            'key' => $key,
             'array' => $this->SESSION,
+        ));
+        return $this->getFromGPC($params);
+    }
+
+    public function server($type, $key, $options = array())
+    {
+        // overwrite options
+        $params = array_merge($options, array(
+            'type' => $type,
+            'key' => $key,
+            'array' => $this->SERVER,
         ));
         return $this->getFromGPC($params);
     }
@@ -1895,14 +1978,14 @@ class ClementineRequest
     {
         // overwrite options
         $params = array_merge($options, array(
-            'type'  => $type,
-            'key'   => $key,
+            'type' => $type,
+            'key' => $key,
             'array' => $this->REQUEST,
         ));
         return $this->getFromGPC($params);
     }
 
-    public function getFromGPC ($params)
+    public function getFromGPC($params)
     {
         if (empty($params['type'])) {
             if (__DEBUGABLE__ && Clementine::$config['clementine_debug']['display_errors']) {
@@ -1966,7 +2049,7 @@ class ClementineRequest
      * @access public
      * @return void
      */
-    public function ifSetGet ($params)
+    public function ifSetGet($params)
     {
         if (empty($params['type'])) {
             if (__DEBUGABLE__ && Clementine::$config['clementine_debug']['display_errors']) {
@@ -1994,10 +2077,10 @@ class ClementineRequest
                 $params['striptags_tags'] = ((strlen($params['striptags']) && $params['striptags'] != 1) ? $params['striptags'] : ''); // tags a preserver
                 if ($params['type'] == 'array') {
                     foreach ($params['array'][$params['key']] as $subkey => $val) {
-                        $params['array'][$params['key']][$subkey]  = strip_tags($params['array'][$params['key']][$subkey], $params['striptags_tags']);
+                        $params['array'][$params['key']][$subkey] = strip_tags($params['array'][$params['key']][$subkey], $params['striptags_tags']);
                     }
                 } else {
-                    $params['array'][$params['key']]  = strip_tags($params['array'][$params['key']], $params['striptags_tags']);
+                    $params['array'][$params['key']] = strip_tags($params['array'][$params['key']], $params['striptags_tags']);
                 }
             }
             if (!empty($params['trim'])) {
@@ -2029,10 +2112,10 @@ class ClementineRequest
                         $ifset_sz = count($params['ifset']);
                     }
                     for ($i = 0; $i < $ifset_sz; ++$i) {
-                        $retour .= $params['ifset'][$i] . $ret;
+                        $retour.= $params['ifset'][$i] . $ret;
                     }
                     if ($ifset_sz == count($params['ifset']) - 1) {
-                        $retour .= $params['ifset'][$ifset_sz];
+                        $retour.= $params['ifset'][$ifset_sz];
                     }
                     return $retour;
                 } else {

@@ -201,13 +201,14 @@ class coreDebugHelper extends coreDebugHelper_Parent
         }
     }
 
-    public function debugBlock_register_stack($scope, $module, $path, $file, $ignores, $load_parent)
+    public function debugBlock_registerStack($fullscope, $module, $path, $file, $ignores, $load_parent)
     {
         if (__DEBUGABLE__ && (Clementine::$config['clementine_debug']['block'] || Clementine::$config['clementine_debug']['block_label'])) {
             $backtrace = debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS);
             if (__DEBUGABLE__ && Clementine::$config['clementine_debug']['block_label']) {
-                echo '<span class="Clementine_debug_block" style="margin: -5px; border: solid #FF6600 5px; padding: 5px; -moz-border-radius: 5px; background-color: #F80; color: #FFF; opacity: 0.2; position: absolute; font-size: 12px; line-height: 1.4em; z-index: 9998; " onmouseover="this.style.opacity=1; this.style.zIndex=9999; " onmouseout="this.style.opacity=0.2; this.style.zIndex=9998; ">';
-                echo '<strong>' . $scope . '/' . $module . ' &gt; ' . $path . '</strong><br />';
+                echo '<span class="Clementine_debug_block" style="margin: -5px; border: solid #F80 5px; padding: 5px; -moz-border-radius: 5px; background-color: #F60; color: #FFF; opacity: 0.1; position: absolute; font-size: 12px; line-height: 1.4em; z-index: 9998; display: table; " onmouseover="this.style.opacity=1; this.style.zIndex = parseInt(this.style.zIndex, 10) + 1; " onmouseout="this.style.opacity=0.1; this.style.zIndex = parseInt(this.style.zIndex, 10) - 1; "><button onclick="this.parentNode.style.opacity=0.1; this.parentNode.style.zIndex = parseInt(this.parentNode.style.zIndex, 10) - 2; " >cycle</button>';
+                $filepath = str_replace('/./', '/', 'app/' . $fullscope['site'] . '/' . $fullscope['scope'] . '/' . $module . '/view/' . $path . '.php');
+                echo '<input type="text" style="width: ' . (1 + (mb_strlen($filepath, __PHP_ENCODING__) / 2)) . 'em; " onclick="select(); " value="' . $filepath . '" /><br />';
             }
             array_pop($backtrace); // pas besoin de préciser /index.php
             // TODO: rajouter un array_pop car on est dans le controller Debug et non plus directement dans Clementine ?
@@ -240,11 +241,11 @@ class coreDebugHelper extends coreDebugHelper_Parent
         }
     }
 
-    public function debugBlock_dumpStack($scope, $module, $path_array)
+    public function debugBlock_dumpStack($fullscope, $module, $path_array)
     {
         if (__DEBUGABLE__ && (Clementine::$config['clementine_debug']['block'])) {
             // affiche dans le tableau $this->debug l'ordre de surcharge pour ce block
-            Clementine::$clementine_debug['block'][] = '<strong>' . $scope . '/' . $module . ' &gt; ' . implode('/', $path_array) . '</strong><br />' . implode("<br />", Clementine::$register['clementine_debug']['block_files_stack']);
+            Clementine::$clementine_debug['block'][] = '<strong>' . $fullscope['scope'] . '/' . $module . ' &gt; ' . implode('/', $path_array) . '</strong><br />' . implode("<br />", Clementine::$register['clementine_debug']['block_files_stack']);
         }
     }
 

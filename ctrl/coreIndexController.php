@@ -30,4 +30,3 @@ class coreIndexController extends coreIndexController_Parent
     }
 
 }
-?>
