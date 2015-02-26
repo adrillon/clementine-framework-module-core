@@ -944,21 +944,28 @@ class Clementine
     {
         // si appel CLI
         $usage = 'Usage : /usr/bin/php index.php "http://www.site.com" "ctrl[/action]" "[id=1&query=string]"';
-        if (!isset($_SERVER['HTTP_HOST'])) {
+        if (!isset($_SERVER['HTTP_HOST']) || !isset($_SERVER['SERVER_NAME'])) {
             global $argv;
             if (isset($argv[1]) && (stripos($argv[1], 'http://') === 0 || stripos($argv[1], 'https://') === 0)) {
                 define('__INVOCATION_METHOD__', 'CLI');
-                $server_http_host = preg_replace('@^https?://@i', '', $argv[1]);
-                $server_http_host = preg_replace('@/.*@', '', $server_http_host);
-                define('__SERVER_HTTP_HOST__', $server_http_host);
+                $insecure_server_http_host = preg_replace('@^https?://@i', '', $argv[1]);
+                $insecure_server_http_host = preg_replace('@/.*@', '', $insecure_server_http_host);
             } else {
                 echo $usage;
                 die();
             }
         } else {
             define('__INVOCATION_METHOD__', 'URL');
-            define('__SERVER_HTTP_HOST__', $_SERVER['HTTP_HOST']);
+            if (isset($_SERVER['HTTP_HOST'])) {
+                $insecure_server_http_host = $_SERVER['HTTP_HOST'];
+            } else {
+                // fallback to SERVER_NAME if HTTP_HOST is not set
+                $insecure_server_http_host = $_SERVER['SERVER_NAME'];
+            }
         }
+        // XSS protection
+        $server_http_host = preg_replace('@[^a-z0-9-\.]@i', '', $insecure_server_http_host);
+        define('__SERVER_HTTP_HOST__', $server_http_host);
         // charge la config
         $config = $this->_get_config();
         // qq constantes
