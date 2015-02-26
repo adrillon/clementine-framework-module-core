@@ -1,5 +1,5 @@
 <?php
-$_SERVER['SERVER_NAME'] = 'pasus';
+$_SERVER['HTTP_HOST'] = 'pasus';
 require_once ('../lib/Clementine.php');
 global $Clementine;
 $Clementine = new Clementine();

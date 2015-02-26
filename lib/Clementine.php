@@ -239,7 +239,7 @@ class Clementine
         );
         $multisite = array(
             '.',
-            __SERVER_NAME__
+            __SERVER_HTTP_HOST__
         );
         foreach ($multisite as $site) {
             // gestion des alias
@@ -273,7 +273,9 @@ class Clementine
                         $modules_weights[$obj] = $infos['weight'];
                         $modules_types[$obj] = array(
                             'scope' => $scope,
-                            'site' => $site
+                            'site' => $site,
+                            'version' => $infos['version'],
+                            'weight' => $infos['weight']
                         );
                     }
                 }
@@ -942,20 +944,20 @@ class Clementine
     {
         // si appel CLI
         $usage = 'Usage : /usr/bin/php index.php "http://www.site.com" "ctrl[/action]" "[id=1&query=string]"';
-        if (!isset($_SERVER['SERVER_NAME'])) {
+        if (!isset($_SERVER['HTTP_HOST'])) {
             global $argv;
             if (isset($argv[1]) && (stripos($argv[1], 'http://') === 0 || stripos($argv[1], 'https://') === 0)) {
                 define('__INVOCATION_METHOD__', 'CLI');
-                $server_name = preg_replace('@^https?://@i', '', $argv[1]);
-                $server_name = preg_replace('@/.*@', '', $server_name);
-                define('__SERVER_NAME__', $server_name);
+                $server_http_host = preg_replace('@^https?://@i', '', $argv[1]);
+                $server_http_host = preg_replace('@/.*@', '', $server_http_host);
+                define('__SERVER_HTTP_HOST__', $server_http_host);
             } else {
                 echo $usage;
                 die();
             }
         } else {
             define('__INVOCATION_METHOD__', 'URL');
-            define('__SERVER_NAME__', $_SERVER['SERVER_NAME']);
+            define('__SERVER_HTTP_HOST__', $_SERVER['HTTP_HOST']);
         }
         // charge la config
         $config = $this->_get_config();
@@ -1055,7 +1057,7 @@ class Clementine
         if (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS']) {
             $protocol = 'https://';
         }
-        define('__WWW_ROOT__', $protocol . __SERVER_NAME__ . __BASE_URL__);
+        define('__WWW_ROOT__', $protocol . __SERVER_HTTP_HOST__ . __BASE_URL__);
         $overrides = $this->getOverrides();
         foreach ($overrides as $module => $override) {
             $www_root = __WWW_ROOT__ . '/app/' . $override['site'] . '/' . $override['scope'] . '/' . $module;
@@ -1216,7 +1218,7 @@ class Clementine
                 'sql' => 'Log des requêtes SQL exécutées'
             );
             $debug = <<<HTML
-        <div id="Clementine_debug_div" style="background: transparent; position: absolute; max-width: 100%; top: 100%; right: 0; z-index: 9999; font-family: courier; font-size: 14px; padding: 0.5em; -moz-border-radius: 5px; overflow: hidden; " >
+        <div id="Clementine_debug_div" style="background: transparent; position: absolute; max-width: 100%; right: 0; z-index: 9999; font-family: courier; font-size: 14px; padding: 0.5em; -moz-border-radius: 5px; overflow: hidden; " >
             <div style="text-align: right; ">
             <button
                 style="cursor: pointer; box-shadow: 3px 3px 3px rgba(128,128,128,0.5); "
@@ -1426,7 +1428,7 @@ HTML;
         );
         $multisite = array(
             '.',
-            __SERVER_NAME__
+            __SERVER_HTTP_HOST__
         );
         foreach ($multisite as $site) {
             // gestion des alias
