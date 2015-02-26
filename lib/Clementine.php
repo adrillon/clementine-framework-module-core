@@ -944,7 +944,7 @@ class Clementine
     {
         // si appel CLI
         $usage = 'Usage : /usr/bin/php index.php "http://www.site.com" "ctrl[/action]" "[id=1&query=string]"';
-        if (!isset($_SERVER['HTTP_HOST']) || !isset($_SERVER['SERVER_NAME'])) {
+        if (!isset($_SERVER['HTTP_HOST']) && !isset($_SERVER['SERVER_NAME'])) {
             global $argv;
             if (isset($argv[1]) && (stripos($argv[1], 'http://') === 0 || stripos($argv[1], 'https://') === 0)) {
                 define('__INVOCATION_METHOD__', 'CLI');
