@@ -138,14 +138,14 @@ class coreDebugHelper extends coreDebugHelper_Parent
             } else {
                 $size = memory_get_usage();
             }
-            $unites = array('b','k','m','g','t','p','e');
+            $unites = array('b','kb','mb','gb','tb','pb','eb');
             $unite = strtolower(substr(preg_replace('/[0-9]*/', '', $size), 0, 1));
             if (!$unite) {
-                $unite = 'b';
+                $unite.= 'b';
             }
             $i = floor(log($size, 1000));
             if (isset($unites[$i])) {
-                $unite = $unites[$i];
+                $unite = strtoupper($unites[$i]);
                 $memory_usage = $size / pow(1000, ($i));
             } else {
                 $memory_usage = $size;
@@ -233,10 +233,10 @@ class coreDebugHelper extends coreDebugHelper_Parent
         }
     }
 
-    public function debugBlock_warningRecursiveCall($path)
+    public function debugBlock_warningRecursiveCall($path, $level)
     {
         if (__DEBUGABLE__ && Clementine::$config['clementine_debug']['display_errors']) {
-            $msg = 'Recursive block call for <strong>' . $path . '</strong>';
+            $msg = 'Recursive block call limit (set to ' . ($level - 1)  . ') reached for block <strong>' . $path . '</strong>';
             $this->trigger_error($msg, E_USER_WARNING, 1);
         }
     }

@@ -647,6 +647,7 @@ class Clementine
         }
         $vue_affichee = 0;
         $vue_recursive = 0;
+        static $recursion_level = array();
         $module = '';
         $reverse_keys = array_keys($reverses);
         $pos = array_search($ignores, $reverse_keys);
@@ -673,12 +674,26 @@ class Clementine
                     $load_block = 1;
                 } else {
                     // si le block n'est pas deja charge
+                    if (!isset($recursion_level[$path])) {
+                        $recursion_level[$path] = 1;
+                    }
                     if (!in_array($file, Clementine::$_register['_parent_loaded_blocks_files'][$path])) {
                         $load_block = 1;
+                        $recursion_level[$path] = 1;
                     } else {
                         // si load parent, ce n'est pas un appel recursif
                         if ($load_parent) {
                             continue;
+                        }
+                        $load_block = 1;
+                        $vue_recursive = 1;
+                        ++$recursion_level[$path];
+                        if ($recursion_level[$path] > $conf['module_core']['getblock_max_recursion']) {
+                            // warning : recursive block call
+                            if (__DEBUGABLE__) {
+                                $this->getHelper('debug')->debugBlock_warningRecursiveCall($path, $recursion_level[$path]);
+                            }
+                            break;
                         }
                     }
                 }
@@ -724,13 +739,6 @@ class Clementine
                         $vue_affichee = 1;
                         break;
                     }
-                } else {
-                    // warning : recursive block call
-                    if (__DEBUGABLE__) {
-                        $this->getHelper('debug')->debugBlock_warningRecursiveCall($path);
-                    }
-                    $vue_recursive = 1;
-                    break;
                 }
             }
         }
@@ -966,6 +974,14 @@ class Clementine
         // XSS protection
         $server_http_host = preg_replace('@[^a-z0-9-\.]@i', '', $insecure_server_http_host);
         define('__SERVER_HTTP_HOST__', $server_http_host);
+        // constante indentifiant le site courant
+        $aliases = glob(realpath(dirname(__FILE__) . '/../../../' . __SERVER_HTTP_HOST__) . '/alias-*');
+        if (isset($aliases[0])) {
+            $current_site = substr(basename($aliases[0]), 6);
+            define('__CLEMENTINE_HOST__', $current_site);
+        } else {
+            define('__CLEMENTINE_HOST__', __SERVER_HTTP_HOST__);
+        }
         // charge la config
         $config = $this->_get_config();
         // qq constantes
