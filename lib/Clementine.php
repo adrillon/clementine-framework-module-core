@@ -630,7 +630,7 @@ class Clementine
             if (!$deb) {
                 $deb = microtime(true);
             }
-            $this->getHelper('debug')->debugBlock_init();
+            $this->getHelper('debug')->debugBlock_init($path);
         }
         $tmp_path_array = explode('/', $path);
         $path_array = array(
