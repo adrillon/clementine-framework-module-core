@@ -190,11 +190,19 @@ class coreDebugHelper extends coreDebugHelper_Parent
         }
     }
 
-    public function debugBlock_init()
+    public function debugBlock_init($path)
     {
         if (__DEBUGABLE__ && (Clementine::$config['clementine_debug']['block'] || Clementine::$config['clementine_debug']['block_label'])) {
             if (!isset(Clementine::$register['clementine_debug'])) {
                 Clementine::$register['clementine_debug'] = array();
+            }
+            if (!isset(Clementine::$register['clementine_debug']['blocks_counters'])) {
+                Clementine::$register['clementine_debug']['blocks_counters'] = array();
+            }
+            if (!isset(Clementine::$register['clementine_debug']['blocks_counters'][$path])) {
+                Clementine::$register['clementine_debug']['blocks_counters'][$path] = 1;
+            } else {
+                Clementine::$register['clementine_debug']['blocks_counters'][$path] += 1;
             }
             // on remet a 0 la pile
             Clementine::$register['clementine_debug']['block_files_stack'] = array();
@@ -210,22 +218,29 @@ class coreDebugHelper extends coreDebugHelper_Parent
                 $filepath = str_replace('/./', '/', 'app/' . $fullscope['site'] . '/' . $fullscope['scope'] . '/' . $module . '/view/' . $path . '.php');
                 echo '<input type="text" style="width: ' . (1 + (mb_strlen($filepath, __PHP_ENCODING__) / 2)) . 'em; " onclick="select(); " value="' . $filepath . '" /><br />';
             }
-            array_pop($backtrace); // pas besoin de préciser /index.php
-            // TODO: rajouter un array_pop car on est dans le controller Debug et non plus directement dans Clementine ?
-            array_pop($backtrace); // pas besoin de préciser pour le fichier index.php de Clementine
-            array_pop($backtrace); // vire le dernier getBlock, celui qui est appele automatiquement dans ce fichier
+            array_pop($backtrace); // masque /app/share/core/lib/index.php
+            array_pop($backtrace); // masque /index.php
             $basetxt = $file;
-            foreach ($backtrace as $trace) {
-                if ((!$load_parent && $trace['function'] == 'getBlock') || ($load_parent && $trace['function'] == 'getParentBlock')) {
-                    $basetxt .= '<br />qui est chargé par <em>' . $trace['file'] . '</em>:' . $trace['line'];
-                }
-            }
             if (strlen($basetxt)) {
-                $txt = $basetxt;
-                if ($ignores['is_ignored']) {
-                    $txt = ' <div style="color: #F00; ">' . $module . ' ignoré <br />' . $basetxt . '</div>';
+                $indent = 0;
+                $getBlock_functions = array(
+                    'getBlock' => 1,
+                    'getBlockHtml' => 1,
+                    'getParentBlock' => 1,
+                );
+                $clementine_file = __FILES_ROOT__ . '/app/share/core/lib/Clementine.php';
+                $files = array();
+                foreach ($backtrace as $key => $trace) {
+                    //if (array_key_exists('function', $trace) && array_key_exists($trace['function'], $getBlock_functions)) {
+                        if ($trace['file'] != $clementine_file) {
+                            $files[] = $trace;
+                        }
+                    //}
                 }
-                Clementine::$register['clementine_debug']['block_files_stack'][] = $txt;
+                if ($ignores['is_ignored']) {
+                    $files = '<div style="color: #F00; ">' . $module . ' ignoré <br />' . $basetxt . '</div>';
+                }
+                Clementine::$register['clementine_debug']['block_files_stack'][] = $files;
             }
             if (__DEBUGABLE__ && Clementine::$config['clementine_debug']['block_label']) {
                 echo '</span>';
@@ -241,11 +256,59 @@ class coreDebugHelper extends coreDebugHelper_Parent
         }
     }
 
-    public function debugBlock_dumpStack($fullscope, $module, $path_array)
+    public function debugBlock_dumpStack($fullscope, $module, $path_array, $duree = null)
     {
         if (__DEBUGABLE__ && (Clementine::$config['clementine_debug']['block'])) {
+            $path = implode('/', $path_array);
+            $details = '';
+            $duree_open = '<span style="color:#000;">';
+            $duree_close = '</span>';
+            if ($duree > Clementine::$config['clementine_debug']['blocks_time_info']) {
+                $duree_open = '<span style="color:#0A0;">';
+            }
+            if ($duree > Clementine::$config['clementine_debug']['blocks_time_warn']) {
+                $duree_open = '<span style="color:#F80;">';
+            }
+            if ($duree > Clementine::$config['clementine_debug']['blocks_time_alert']) {
+                $duree_open = '<span style="color:#F00;">';
+            }
+            $num_appel = Clementine::$register['clementine_debug']['blocks_counters'][$path];
+            $num_open = '<span style="color:#000;">';
+            $num_close = '</span>';
+            if ($num_appel > Clementine::$config['clementine_debug']['blocks_calls_info']) {
+                $num_open = '<span style="color:#0A0;">';
+            }
+            if ($num_appel > Clementine::$config['clementine_debug']['blocks_calls_warn']) {
+                $num_open = '<span style="color:#F80;">';
+            }
+            if ($num_appel > Clementine::$config['clementine_debug']['blocks_calls_alert']) {
+                $num_open = '<span style="color:#F00;">';
+            }
+            //if ($duree) {
+            $details = ' (' . $num_open . $num_appel . 'e appel' . $num_close . ', ' . $duree_open . 'duree de cet appel : ' . number_format($duree, 3, ',', ' ') . $duree_close . '&nbsp;ms)';
+            //}
             // affiche dans le tableau $this->debug l'ordre de surcharge pour ce block
-            Clementine::$clementine_debug['block'][] = '<strong>' . $fullscope['scope'] . '/' . $module . ' &gt; ' . implode('/', $path_array) . '</strong><br />' . implode("<br />", Clementine::$register['clementine_debug']['block_files_stack']);
+            $filename = $fullscope['scope'] . '/' . $module . '/view/' . $path;
+            $filepath = __FILES_ROOT__ . '/app/' . $filename . '.php';
+            $txt = '<strong>' . $filename . '</strong>' . $details . '<br />';
+            $display = 1;
+            foreach (Clementine::$register['clementine_debug']['block_files_stack'] as $files_stack) {
+                if (is_array($files_stack)) {
+                    foreach ($files_stack as $trace) {
+                        if ($trace['file'] == $filepath) {
+                            $txt.= '<strong>';
+                        }
+                        $txt.= $trace['file'] . ':' . $trace['line'] . '<br />' . PHP_EOL;
+                        if ($trace['file'] == $filepath) {
+                            $txt.= '</strong>';
+                        }
+                    }
+                } else {
+                    // module ignoré
+                    $txt.= $files_stack;
+                }
+            }
+            Clementine::$clementine_debug['block'][] = $txt;
         }
     }
 

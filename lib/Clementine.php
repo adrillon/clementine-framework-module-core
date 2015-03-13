@@ -626,6 +626,10 @@ class Clementine
         ++Clementine::$_register['_forbid_getcontroller'];
         $path = strtolower($path);
         if (__DEBUGABLE__) {
+            $deb = 0;
+            if (!$deb) {
+                $deb = microtime(true);
+            }
             $this->getHelper('debug')->debugBlock_init();
         }
         $tmp_path_array = explode('/', $path);
@@ -747,7 +751,8 @@ class Clementine
             $found = 0;
         } else if ($vue_affichee && !$vue_recursive) {
             if (__DEBUGABLE__) {
-                $this->getHelper('debug')->debugBlock_dumpStack($reverse, $module, $path_array);
+                $duree = microtime(true) - $deb;
+                $this->getHelper('debug')->debugBlock_dumpStack($reverse, $module, $path_array, $duree);
             }
         }
         if (!$found) {
@@ -899,12 +904,12 @@ class Clementine
      * @access public
      * @return void
      */
-    public function canGetBlock($path, $data = null, $request = null, $ignores = null, $load_parent = false)
+    public function canGetBlock($path, $data = null, $request = null, $ignores = null, $load_parent = false, $never_display_errors = false)
     {
         if (isset(Clementine::$_register['_canGetBlock'][$path])) {
             return 1;
         }
-        return $this->getBlock($path, $data, $request, $ignores, $load_parent, true);
+        return $this->getBlock($path, $data, $request, $ignores, $load_parent, true, $never_display_errors);
     }
 
     /**
@@ -1161,11 +1166,11 @@ class Clementine
             header('Content-type: text/html; charset="' . __HTML_ENCODING__ . '"');
         }
         if (__DEBUGABLE__ && Clementine::$config['clementine_debug']['overrides']) {
-            $message = '<table width="100%" style="font-size: 12px; line-height: 1.4em; text-align: left; "><thead><tr><th>module</th><th>version</th><th>type</th><th>poids</th></tr></thead><tbody>';
-            $reverses = array_reverse($overrides);
-            foreach ($reverses as $module => $reverse) {
+            $message = '<table width="100%" style="font-size: 12px; line-height: 1.4em; text-align: left; "><thead><tr><th>poids</th><th>module</th><th>version</th><th>type</th></tr></thead><tbody>';
+            //$reverses = array_reverse($overrides);
+            foreach ($overrides as $module => $reverse) {
                 $infos = $this->getModuleInfos($module);
-                $message.= "<tr><td>$module</td><td>" . $infos['version'] . "</td><td>{$overrides[$module]['scope']}</td><td>" . $infos['weight'] . "</td></tr>";
+                $message.= "<tr><td>" . $infos['weight'] . "</td><td>$module</td><td>" . $infos['version'] . "</td><td>{$overrides[$module]['scope']}</td></tr>";
             }
             $message.= '</tbody></table>';
             Clementine::$clementine_debug['overrides'][] = $message;
@@ -1238,10 +1243,10 @@ class Clementine
                 'helper' => 'Helpers chargés sur cette page',
                 'heritage' => '<span style="color: red">Sanity-check sur les héritages : pour éviter les conflits entre surcharges</span>',
                 'overrides' => 'Modules chargés (et poids)',
-                'sql' => 'Log des requêtes SQL exécutées'
+                'sql' => 'Log des requêtes SQL exécutées',
             );
             $debug = <<<HTML
-        <div id="Clementine_debug_div" style="background: transparent; position: absolute; max-width: 100%; right: 0; z-index: 9999; font-family: courier; font-size: 14px; padding: 0.5em; -moz-border-radius: 5px; overflow: hidden; " >
+        <div id="Clementine_debug_div" style="background: rgba(128,128,128,0.1); box-shadow: 3px 3px 3px rgba(128,128,128,0.5); position: absolute; max-width: 100%; right: 0; z-index: 9999; font-family: courier; font-size: 14px; padding: 0.5em; border-radius: 5px; overflow: hidden; " >
             <div style="text-align: right; ">
             <button
                 style="cursor: pointer; box-shadow: 3px 3px 3px rgba(128,128,128,0.5); "
@@ -1259,13 +1264,13 @@ HTML;
             foreach ($types as $type => $libelle) {
                 if (isset(Clementine::$clementine_debug[$type]) && count(Clementine::$clementine_debug[$type])) {
                     $debug.= <<<HTML
-                    <li style="overflow-x: auto; margin: 3px; border: solid #AAA 3px; padding: 3px; -moz-border-radius: 5px; background-color: #DDD; font-size: 12px; line-height: 1.4em; z-index: 9998">
+                    <li style="overflow-x: auto; margin: 3px; border: solid #AAA 3px; padding: 3px; border-radius: 5px; background-color: #DDD; font-size: 12px; line-height: 1.4em; z-index: 9998">
                         <strong>
 HTML;
                     $debug.= $libelle;
                     $debug.= <<<HTML
                         </strong>
-                        <table style="width: 100%; "
+                        <table style="width: 100%; border-radius: 5px; "
 HTML;
                     $debug.= ($type == 'sql') ? ' class="clementine_debug-dataTables"' : '';
                     $debug.= '>';
@@ -1297,10 +1302,10 @@ HTML;
                                 $msg['duree'] = number_format($msg['duree'], 3, ',', ' ') . '&nbsp;ms';
                             }
                             $debug.= <<<HTML
-                            <tr style="background-color: #DDD; border: solid #CCC 3px; "><td style="white-space: pre-wrap; padding: 5px; ">
+                            <tr style="background-color: #DDD; border-top: solid #CCC 3px; "><td style="padding: 5px; ">
 HTML;
                             if (is_array($msg)) {
-                                $debug.= implode('</td><td style="white-space: pre-wrap; padding: 5px; vertical-align: top; ">', $msg);
+                                $debug.= implode('</td><td style="padding: 5px; vertical-align: top; ">', $msg);
                             } else {
                                 $debug.= $msg;
                             }
@@ -1328,7 +1333,7 @@ HTML;
             foreach (Clementine::$clementine_debug as $type => $msg) {
                 if (!in_array($type, array_keys($types), true)) {
                     $debug.= <<<HTML
-                    <li style="overflow-x: auto; margin: 3px; border: solid #AAA 3px; padding: 3px; -moz-border-radius: 5px; background-color: #DDD; font-size: 12px; line-height: 1.4em; z-index: 9998">
+                    <li style="overflow-x: auto; margin: 3px; border: solid #AAA 3px; padding: 3px; border-radius: 5px; background-color: #DDD; font-size: 12px; line-height: 1.4em; z-index: 9998">
 HTML;
                     if (is_array($msg)) {
                         foreach ($msg as $message) {
@@ -1351,7 +1356,7 @@ HTML;
                 $nbsp = iconv(mb_internal_encoding(), __PHP_ENCODING__, $nbsp);
                 // contourne le nbsp pour en faire un espace secable
                 $debug = html_entity_decode(str_replace('&nbsp;', $nbsp, $debug), ENT_QUOTES, __PHP_ENCODING__);
-                Clementine::log(preg_replace('@<[^>]*?>@', '', str_replace('<br />', PHP_EOL, $debug)));
+                Clementine::log(preg_replace('@<[^>]*?>@', '', str_replace('<br />', PHP_EOL, $debug)), false);
             } else {
                 echo $debug;
             }
@@ -1622,7 +1627,7 @@ HTML;
             $content = explode('<br />', $highlighted_content);
             $from = max(0, $errline - 7);
             $content = array_slice($content, $from, 10);
-            $prestyle = 'background: #FFF; border: 2px solid #333; border-radius: 5px; padding: 1em; margin: 1em; text-align: left; font-family: Courier New; font-size: 13px; line-height: 1.4em; overflow: auto; white-space: nowrap; ';
+            $prestyle = 'background: #DDD; border: 2px solid #333; border-radius: 5px; padding: 1em; margin: 1em; text-align: left; font-family: Courier New; font-size: 13px; line-height: 1.4em; overflow: auto; white-space: nowrap; ';
             $display_error.= '<strong style="' . $strongstyle . '" ' . $togglepre . '>' . PHP_EOL . 'Code dump' . PHP_EOL . '</strong>';
             $display_error.= '<pre class="clementine_error_handler_error" style="' . $prestyle . '">';
             $nb = ($from + 1);
@@ -1695,7 +1700,7 @@ HTML;
             );
         }
         if (Clementine::$config['clementine_debug']['log_errors']) {
-            Clementine::log($display_error_log, $color);
+            Clementine::log($display_error_log, $color, false);
         }
         if ($fatal) {
             die();
@@ -1711,7 +1716,7 @@ HTML;
      * @access public
      * @return void
      */
-    public static function log($message, $color = "")
+    public static function log($message, $color = "", $headline = true)
     {
         $nocolor = "\e[0m";
         switch ($color) {
@@ -1722,6 +1727,7 @@ HTML;
         case 'warning':
         case 'warn':
         case 'yellow':
+        case 'orange':
             $color = "\033[33m";
             break;
         case 'fatal':
@@ -1734,10 +1740,19 @@ HTML;
             $color = "\033[34m";
             break;
         }
-        if ($color) {
-            $message.= $nocolor;
+        $log = $message;
+        if (is_array($message) || is_object($message)) {
+            $log = print_r($message, true);
         }
-        error_log($color . $message);
+        if ($color) {
+            $log.= $nocolor;
+        }
+        $entete = '';
+        if ($headline) {
+            $backtrace = debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS);
+            $entete = 'Clementine::log from ' . $backtrace[0]['file'] . ':' . $backtrace[0]['line'] . PHP_EOL;
+        }
+        error_log($color . $entete . $log);
     }
 
     public static function clementine_shutdown_handler()
@@ -1768,9 +1783,10 @@ HTML;
         $dump = preg_replace("/ => " . PHP_EOL . " *array *\(/S", ' => array(', $dump);
         if ($highlight) {
             $dump = highlight_string('<?php ' . $dump . PHP_EOL . '?>', true);
-            $dump = preg_replace('@^<code><span style="color: #000000">' . PHP_EOL . '<span style="color: #0000BB">&lt;\?php&nbsp;@', '<code><span style="color: #0000BB">', $dump);
+            $dump = preg_replace('@^<code><span style="color: #000000">' . PHP_EOL . '<span style="color: #0000BB">&lt;\?php&nbsp;@', '<code><span style="color: #0000BB">' . PHP_EOL, $dump);
             $dump = str_replace('<code>', '<code style="display: table; text-align: left; background-color: #DDD;">', $dump);
             $dump = preg_replace('@\?&gt;</span>' . PHP_EOL . '</span>' . PHP_EOL . '</code>$@', '</span></code>' . PHP_EOL, $dump);
+            $dump = str_replace('<br />', '<br />' . PHP_EOL, $dump);
         } else {
             $dump = htmlentities($dump, ENT_QUOTES, __PHP_ENCODING__);
             $dump = '<pre>' . $dump . '</pre>';
