@@ -640,6 +640,7 @@ class Clementine
         $niveau3 = null;
         if (isset($tmp_path_array[2])) {
             $niveau3 = $tmp_path_array[2];
+            $path_array[3] = $niveau3;
         }
         // prend le bloc du theme le plus haut possible dans la surcharge
         $reverses = array_reverse($this->getOverrides());
