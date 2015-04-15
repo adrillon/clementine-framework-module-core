@@ -82,4 +82,4 @@ _Valeurs :_ `/path/to/writable/file.log`
 
 ### Suivi des logs, exemple avec les requêtes SQL
 
-Le module [db](https://github.com/pa-de-solminihac/clementine-framework-module-db) permet de logguer toutes les requêtes SQL et propose quelques facilités pour les suivre.
+Le module [db](https://github.com/pa-de-solminihac/clementine-framework-module-db) permet de logguer toutes les requêtes SQL et propose quelques facilités pour les suivre...
