@@ -1,8 +1,6 @@
-Clementine Framework : module CORE
-===
+# Clementine Framework : module CORE
 
-Clementine : MVC et héritage
----
+## Clementine : MVC et héritage
 
 * ```$this->getModel()``` et ```$this->getHelper()```
 
@@ -12,12 +10,12 @@ Clementine : MVC et héritage
 recoit dans ```$data``` le tableau ```$this->data``` peuplé par le controleur
 recoit dans ```$request``` l'objet ```ClementineRequest```
 
-La configuration
----
-Dans les fichiers ```config.ini```, qui se surchargent dans l'ordre des overrides.
+## La configuration
 
-L'héritage dans Clémentine
----
+Dans les fichiers ```config.ini```, qui se surchargent en suivant l'ordre défini par le poids des modules, et détaillé dans la section ** Modules chargés (et poids)** du tableau de debug.
+
+## L'héritage dans Clémentine
+
 * le principe des overrides : calques à la Photoshop
 
 * modules découplés => 
@@ -48,13 +46,11 @@ Note : il est mieux d'utiliser $request->GET plutôt que $_GET.
 Fonctionnalités pour le debug
 ---
 
-Rapports d'erreur
-===
+### Rapports d'erreur
 
 Lorsqu'une erreur PHP est détectée par le framework, il génère un rapport d'erreur contenant des informations sur l'erreur elle même, un aperçu du code qui l'a causée, et des informations sur la requête, la configuration du serveur et du client, une backtrace.
 
-Options de debug
-===
+### Options de debug
 
 Les principales options de debug sont les suivantes, on les active dans la section `[clementine_debug]` du `config.ini` :
 
@@ -85,6 +81,6 @@ _Valeurs :_ `[0,1]`
 **error_log** : chemin vers le fichier de log.
 _Valeurs :_ `/path/to/writable/file.log`
 
-Suivi des logs, exemple avec les requêtes SQL
-===
+### Suivi des logs, exemple avec les requêtes SQL
+
 Le module [db](https://github.com/pa-de-solminihac/clementine-framework-module-db) permet de logguer toutes les requêtes SQL.
