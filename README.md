@@ -45,6 +45,43 @@ $request->map_url() // et $request->canonical_url()
 ```
 Note : il est mieux d'utiliser $request->GET plutôt que $_GET.
 
-La gestion des erreurs
+Fonctionnalités pour le debug
 ---
-rapports d'erreurs, envoi par mail
+
+Rapport d'erreur
+===
+
+Lorsqu'une erreur PHP est détectée par le framework, il génère un rapport d'erreur contenant des informations sur l'erreur elle même, un aperçu du code qui l'a causée, et des informations sur la requête, la configuration du serveur et du client, une backtrace.
+
+Options de debug
+===
+
+Les principales options de debug sont les suivantes, on les active dans la section `[clementine_debug]` du `config.ini` :
+
+**enabled** : activer le mode debug (performances moindres...). 
+_Valeurs :_ `[0,1]`
+
+**allowed_ip** : adresses IP autorisées à voir les erreurs si `display_errors` est activé. 
+_Liste d'adresses IP séparé par des virgules_
+
+**display_errors** : active l'affichage des erreurs
+_Valeurs :_ `[0,1]`
+
+**send_errors_by_email** : active l'envoi d'erreurs par email.
+_Valeurs :_ `[0,1]`
+
+Le destinataire est celui défini dans 
+```ini
+[clementine_global]
+email_dev=
+```
+
+**send_errors_by_email_max** : nombre max de mails d'erreur à envoyer par requête HTTP
+_Valeurs :_ `nombre entier`
+
+**log_errors** : log les erreurs avec `error_log()`
+_Valeurs :_ `[0,1]`
+
+**error_log** : chemin vers le fichier de log.
+_Valeurs :_ `/path/to/writable/file.log`
+
