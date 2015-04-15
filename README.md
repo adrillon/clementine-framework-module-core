@@ -41,14 +41,13 @@ $this->getRequest()
 $request->get('int', 'id_user'); // get, post, cookie, session, request...
 $request->map_url() // et $request->canonical_url()
 ```
-Note : il est mieux d'utiliser $request->GET plutôt que $_GET.
 
 Fonctionnalités pour le debug
 ---
 
 ### Rapports d'erreur
 
-Lorsqu'une erreur PHP est détectée par le framework, il génère un rapport d'erreur contenant des informations sur l'erreur elle même, un aperçu du code qui l'a causée, et des informations sur la requête, la configuration du serveur et du client, une backtrace.
+Lorsqu'une erreur PHP (notice, warning, fatal, ...) est détectée par le framework, celui-ci génère un rapport d'erreur contenant des informations sur l'erreur elle-même, un aperçu du code qui l'a causée, et des informations sur la requête, la configuration du serveur et du client, une backtrace.
 
 ### Options de debug
 
