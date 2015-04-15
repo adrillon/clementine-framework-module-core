@@ -48,7 +48,7 @@ Note : il est mieux d'utiliser $request->GET plutôt que $_GET.
 Fonctionnalités pour le debug
 ---
 
-Rapport d'erreur
+Rapports d'erreur
 ===
 
 Lorsqu'une erreur PHP est détectée par le framework, il génère un rapport d'erreur contenant des informations sur l'erreur elle même, un aperçu du code qui l'a causée, et des informations sur la requête, la configuration du serveur et du client, une backtrace.
@@ -85,3 +85,6 @@ _Valeurs :_ `[0,1]`
 **error_log** : chemin vers le fichier de log.
 _Valeurs :_ `/path/to/writable/file.log`
 
+Suivi des logs, exemple avec les requêtes SQL
+===
+Le module [db](https://github.com/pa-de-solminihac/clementine-framework-module-db) permet de logguer toutes les requêtes SQL.
