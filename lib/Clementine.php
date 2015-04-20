@@ -18,6 +18,7 @@ class Clementine
     // variables utilisees pour que les modules puissent enregistrer dans un endroit centralisé des données
     static public $register = array();
     static private $_register = array(
+        'all_blocks' => array(),
         '_handled_errors' => 0,
         '_parent_loaded_blocks' => array(),
         '_parent_loaded_blocks_files' => array(),
@@ -71,7 +72,7 @@ class Clementine
      */
     public function run()
     {
-        $mvc_generation_begin = microtime(true);
+        Clementine::$_register['mvc_generation_begin'] = microtime(true);
         $erreur_404 = 0;
         $this->apply_config();
         // (nécessaire pour map_url() qu'on appelle depuis le hook before_request) : initialise Clementine::$register['request']
@@ -100,6 +101,22 @@ class Clementine
                 $erreur_404 = 1;
             }
         } else {
+            $use_apc = ini_get('apc.enabled');
+            $fromcache = null;
+            if ($use_apc) {
+                if ($request->server('string', 'HTTP_PRAGMA') == 'no-cache') {
+                    apc_delete('clementine_core-all_blocks');
+                }
+                Clementine::$_register['all_blocks'] = apc_fetch('clementine_core-all_blocks', $fromcache);
+            }
+            if (!$fromcache) {
+                $mask = __FILES_ROOT__ . '/app/{*/,}*/*/view/*/{*/,}*.php';
+                Clementine::$_register['all_blocks'] = array_flip(glob($mask, GLOB_BRACE|GLOB_NOSORT|GLOB_NOCHECK));
+                unset(Clementine::$_register['all_blocks'][$mask]);
+                if ($use_apc) {
+                    apc_store('clementine_core-all_blocks', Clementine::$_register['all_blocks']);
+                }
+            }
             $this->hook('before_controller_action');
             // charge le controleur demande dans la requete
             if (count((array)$controller)) {
@@ -150,8 +167,6 @@ class Clementine
             $this->trigger404(1);
         }
         if (__DEBUGABLE__) {
-            $debug->memoryUsage();
-            $debug->generationTime($mvc_generation_begin, microtime(true));
             $debug->debug();
         }
     }
@@ -230,68 +245,86 @@ class Clementine
      */
     public function getOverridesByWeights($only_weights = false)
     {
-        // liste les dossiers contenus dans ../app/share
-        $modules_weights = array();
-        $modules_types = array();
-        $scopes = array(
-            'share',
-            'local'
-        );
-        $multisite = array(
-            '.',
-            __SERVER_HTTP_HOST__
-        );
-        foreach ($multisite as $site) {
-            // gestion des alias
-            if ($site != '.') {
-                $aliases = glob(realpath(dirname(__FILE__) . '/../../../' . $site) . '/alias-*');
-                if (isset($aliases[0])) {
-                    $site = substr(basename($aliases[0]), 6);
-                }
+        $use_apc = ini_get('apc.enabled');
+        $fromcache = null;
+        if ($use_apc) {
+            $apc_key = 'clementine_core-overrides_by_weight';
+            if ($only_weights) {
+                $apc_key = 'clementine_core-overrides_by_weight_only';
             }
-            foreach ($scopes as $scope) {
-                $appdir = realpath(dirname(__FILE__) . '/../../..');
-                $path = $appdir . '/' . $site . '/' . $scope . '/';
-                if (!$dh = @opendir($path)) {
-                    continue;
+            if (isset($_SERVER['HTTP_PRAGMA']) && $_SERVER['HTTP_PRAGMA'] == 'no-cache') {
+                apc_delete($apc_key);
+            }
+            $all_overrides = apc_fetch($apc_key, $fromcache);
+        }
+        if (!$fromcache || !isset($all_overrides[__SERVER_HTTP_HOST__])) {
+            // liste les dossiers contenus dans ../app/share
+            $modules_weights = array();
+            $modules_types = array();
+            $scopes = array(
+                'share',
+                'local'
+            );
+            $multisite = array(
+                '.',
+                __SERVER_HTTP_HOST__
+            );
+            foreach ($multisite as $site) {
+                // gestion des alias
+                if ($site != '.') {
+                    $aliases = glob(realpath(dirname(__FILE__) . '/../../../' . $site) . '/alias-*');
+                    if (isset($aliases[0])) {
+                        $site = substr(basename($aliases[0]), 6);
+                    }
                 }
-                while (false !== ($obj = readdir($dh))) {
-                    if ($obj == '.' || $obj == '..' || (isset($obj[0]) && $obj[0] == '.')) {
+                foreach ($scopes as $scope) {
+                    $appdir = realpath(dirname(__FILE__) . '/../../..');
+                    $path = $appdir . '/' . $site . '/' . $scope . '/';
+                    if (!$dh = @opendir($path)) {
                         continue;
                     }
-                    if (is_dir($path . '/' . $obj)) {
-                        if (array_key_exists($obj, $modules_weights)) {
-                            $this->debug_overrides_module_twin($obj);
-                            die();
+                    while (false !== ($obj = readdir($dh))) {
+                        if ($obj == '.' || $obj == '..' || (isset($obj[0]) && $obj[0] == '.')) {
+                            continue;
                         }
-                        $paths = glob($appdir . '/*/*/' . $obj);
-                        if (count($paths) > 1) {
-                            $this->debug_overrides_module_should_be_common($obj, $paths);
-                            die();
+                        if (is_dir($path . '/' . $obj)) {
+                            if (array_key_exists($obj, $modules_weights)) {
+                                $this->debug_overrides_module_twin($obj);
+                                die();
+                            }
+                            $paths = glob($appdir . '/*/*/' . $obj);
+                            if (count($paths) > 1) {
+                                $this->debug_overrides_module_should_be_common($obj, $paths);
+                                die();
+                            }
+                            $infos = $this->getModuleInfos($obj);
+                            $modules_weights[$obj] = $infos['weight'];
+                            $modules_types[$obj] = array(
+                                'scope' => $scope,
+                                'site' => $site,
+                                'version' => $infos['version'],
+                                'weight' => $infos['weight']
+                            );
                         }
-                        $infos = $this->getModuleInfos($obj);
-                        $modules_weights[$obj] = $infos['weight'];
-                        $modules_types[$obj] = array(
-                            'scope' => $scope,
-                            'site' => $site,
-                            'version' => $infos['version'],
-                            'weight' => $infos['weight']
-                        );
                     }
+                    closedir($dh);
                 }
-                closedir($dh);
+            }
+            array_multisort(array_values($modules_weights), array_keys($modules_weights), $modules_weights);
+            if ($only_weights) {
+                $overrides = $modules_weights;
+            } else {
+                $overrides = array();
+                foreach ($modules_weights as $module => $weight) {
+                    $overrides[$module] = $modules_types[$module];
+                }
+            }
+            if ($use_apc) {
+                $all_overrides[__SERVER_HTTP_HOST__] = $overrides;
+                apc_store($apc_key, $all_overrides);
             }
         }
-        array_multisort(array_values($modules_weights), array_keys($modules_weights), $modules_weights);
-        if ($only_weights) {
-            $overrides = $modules_weights;
-        } else {
-            $overrides = array();
-            foreach ($modules_weights as $module => $weight) {
-                $overrides[$module] = $modules_types[$module];
-            }
-        }
-        return $overrides;
+        return $all_overrides[__SERVER_HTTP_HOST__];
     }
 
     /**
@@ -672,7 +705,7 @@ class Clementine
                 $file.= '/' . $niveau3;
             }
             $file.= '.php';
-            $block_exists = file_exists($file);
+            $block_exists = isset(Clementine::$_register['all_blocks'][$file]);
             if ($block_exists) {
                 $load_block = 0;
                 if (!isset(Clementine::$_register['_parent_loaded_blocks_files'][$path])) {
@@ -1330,6 +1363,9 @@ HTML;
 HTML;
                 }
             }
+            $debugger = $this->getHelper('debug');
+            $debugger->memoryUsage();
+            $debugger->generationTime(Clementine::$_register['mvc_generation_begin'], microtime(true));
             // debug non classe dans $types
             foreach (Clementine::$clementine_debug as $type => $msg) {
                 if (!in_array($type, array_keys($types), true)) {
@@ -1583,7 +1619,6 @@ HTML;
         case E_USER_WARNING:
             $error_type = 'User warning';
             if ($errno == 'E_USER_WARNING_NOMAIL') {
-                $errno == E_USER_WARNING;
                 $nomail = 1;
             }
             $color = "\033[33m";
