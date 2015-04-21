@@ -247,6 +247,7 @@ class Clementine
     {
         $use_apc = ini_get('apc.enabled');
         $fromcache = null;
+        $all_overrides = array();
         if ($use_apc) {
             $apc_key = 'clementine_core-overrides_by_weight';
             if ($only_weights) {
@@ -319,8 +320,8 @@ class Clementine
                     $overrides[$module] = $modules_types[$module];
                 }
             }
+            $all_overrides[__SERVER_HTTP_HOST__] = $overrides;
             if ($use_apc) {
-                $all_overrides[__SERVER_HTTP_HOST__] = $overrides;
                 apc_store($apc_key, $all_overrides);
             }
         }
