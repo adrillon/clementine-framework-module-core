@@ -73,6 +73,7 @@ class Clementine
     public function run()
     {
         Clementine::$_register['mvc_generation_begin'] = microtime(true);
+        Clementine::$_register['use_apc'] = ini_get('apc.enabled');
         $erreur_404 = 0;
         $this->apply_config();
         // (nécessaire pour map_url() qu'on appelle depuis le hook before_request) : initialise Clementine::$register['request']
@@ -101,9 +102,8 @@ class Clementine
                 $erreur_404 = 1;
             }
         } else {
-            $use_apc = ini_get('apc.enabled');
             $fromcache = null;
-            if ($use_apc) {
+            if (Clementine::$_register['use_apc']) {
                 if ($request->server('string', 'HTTP_PRAGMA') == 'no-cache') {
                     apc_delete('clementine_core-all_blocks');
                 }
@@ -113,7 +113,7 @@ class Clementine
                 $mask = __FILES_ROOT__ . '/app/{*/,}*/*/view/*/{*/,}*.php';
                 Clementine::$_register['all_blocks'] = array_flip(glob($mask, GLOB_BRACE|GLOB_NOSORT|GLOB_NOCHECK));
                 unset(Clementine::$_register['all_blocks'][$mask]);
-                if ($use_apc) {
+                if (Clementine::$_register['use_apc']) {
                     apc_store('clementine_core-all_blocks', Clementine::$_register['all_blocks']);
                 }
             }
@@ -245,10 +245,9 @@ class Clementine
      */
     public function getOverridesByWeights($only_weights = false)
     {
-        $use_apc = ini_get('apc.enabled');
         $fromcache = null;
         $all_overrides = array();
-        if ($use_apc) {
+        if (Clementine::$_register['use_apc']) {
             $apc_key = 'clementine_core-overrides_by_weight';
             if ($only_weights) {
                 $apc_key = 'clementine_core-overrides_by_weight_only';
@@ -321,7 +320,7 @@ class Clementine
                 }
             }
             $all_overrides[__SERVER_HTTP_HOST__] = $overrides;
-            if ($use_apc) {
+            if (Clementine::$_register['use_apc']) {
                 apc_store($apc_key, $all_overrides);
             }
         }
@@ -1222,9 +1221,29 @@ class Clementine
     private function _get_config()
     {
         if (!(isset(Clementine::$config['clementine_global']))) {
-            if (!is_file(realpath(dirname(__FILE__) . '/../../../local/site/etc/config.ini'))) {
+            $site_config_filepath = realpath(dirname(__FILE__) . '/../../../local/site/etc/config.ini');
+            if (!is_file($site_config_filepath)) {
                 echo "<br />\n" . '<strong>Clementine fatal error</strong>: fichier de configuration manquant : /app/local/site/etc/config.ini';
                 die();
+            } else {
+                // php < 5.3 compatibility
+                if (version_compare(PHP_VERSION, '5.3.0') >= 0) {
+                    $site_config = parse_ini_file($site_config_filepath, true, INI_SCANNER_RAW);
+                } else {
+                    $site_config = parse_ini_file($site_config_filepath, true);
+                }
+                // désactive use_apc si le debug est activé AVEC affichage des erreurs est activé (selon le fichier app/local/site/etc/config.ini uniquement car il est trop tot pour utiliser l'héritage ici)
+                if (isset($site_config['clementine_debug']) &&
+                    !empty($site_config['clementine_debug']['display_errors']) &&
+                    !empty($site_config['clementine_debug']['enabled']) &&
+                    isset($site_config['clementine_debug']['allowed_ip']) &&
+                    ((!$site_config['clementine_debug']['allowed_ip']) || (
+                        (__INVOCATION_METHOD__ == 'CLI' && in_array('127.0.0.1', explode(',', $site_config['clementine_debug']['allowed_ip']))) || 
+                        (__INVOCATION_METHOD__ == 'URL' && in_array($_SERVER['REMOTE_ADDR'], explode(',', $site_config['clementine_debug']['allowed_ip'])))
+                    ))
+                ) {
+                    Clementine::$_register['use_apc'] = false;
+                }
             }
             $overrides = $this->getOverrides();
             $app_path = dirname(__FILE__) . '/../../../';
