@@ -1238,11 +1238,15 @@ class Clementine
                     !empty($site_config['clementine_debug']['enabled']) &&
                     isset($site_config['clementine_debug']['allowed_ip']) &&
                     ((!$site_config['clementine_debug']['allowed_ip']) || (
-                        (__INVOCATION_METHOD__ == 'CLI' && in_array('127.0.0.1', explode(',', $site_config['clementine_debug']['allowed_ip']))) || 
+                        (__INVOCATION_METHOD__ == 'CLI') || 
                         (__INVOCATION_METHOD__ == 'URL' && in_array($_SERVER['REMOTE_ADDR'], explode(',', $site_config['clementine_debug']['allowed_ip'])))
                     ))
                 ) {
-                    Clementine::$_register['use_apc'] = false;
+                    if (ini_get('apc.enabled')) {
+                        apc_delete('clementine_core-overrides_by_weight');
+                        apc_delete('clementine_core-overrides_by_weight_only');
+                        apc_delete('clementine_core-all_blocks');
+                    }
                 }
             }
             $overrides = $this->getOverrides();
