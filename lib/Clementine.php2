@@ -105,16 +105,16 @@ class Clementine
             $fromcache = null;
             if (!empty(Clementine::$_register['use_apc'])) {
                 if ($request->server('string', 'HTTP_PRAGMA') == 'no-cache') {
-                    apc_delete(__CLEMENTINE_HOST__ . '-clementine_core-all_blocks');
+                    apc_delete('clementine_core-all_blocks');
                 }
-                Clementine::$_register['all_blocks'] = apc_fetch(__CLEMENTINE_HOST__ . '-clementine_core-all_blocks', $fromcache);
+                Clementine::$_register['all_blocks'] = apc_fetch('clementine_core-all_blocks', $fromcache);
             }
             if (!$fromcache) {
                 $mask = __FILES_ROOT__ . '/app/{*/,}*/*/view/*/{*/,}*.php';
                 Clementine::$_register['all_blocks'] = array_flip(glob($mask, GLOB_BRACE|GLOB_NOSORT|GLOB_NOCHECK));
                 unset(Clementine::$_register['all_blocks'][$mask]);
                 if (!empty(Clementine::$_register['use_apc'])) {
-                    apc_store(__CLEMENTINE_HOST__ . '-clementine_core-all_blocks', Clementine::$_register['all_blocks']);
+                    apc_store('clementine_core-all_blocks', Clementine::$_register['all_blocks']);
                 }
             }
             $this->hook('before_controller_action');
@@ -248,9 +248,9 @@ class Clementine
         $fromcache = null;
         $all_overrides = array();
         if (!empty(Clementine::$_register['use_apc'])) {
-            $apc_key = __CLEMENTINE_HOST__ . '-clementine_core-overrides_by_weight';
+            $apc_key = 'clementine_core-overrides_by_weight';
             if ($only_weights) {
-                $apc_key = __CLEMENTINE_HOST__ . '-clementine_core-overrides_by_weight_only';
+                $apc_key = 'clementine_core-overrides_by_weight_only';
             }
             if (isset($_SERVER['HTTP_PRAGMA']) && $_SERVER['HTTP_PRAGMA'] == 'no-cache') {
                 apc_delete($apc_key);
@@ -567,7 +567,64 @@ class Clementine
                 }
             }
             if (isset($prev) && class_exists($prev . $elementname, false)) {
-                $code_to_eval = 'class ' . $elementname . ' extends ' . $prev . $elementname . ' {}';
+                $reflection = new ReflectionClass($prev . $elementname);
+                $methods = $reflection->getMethods();
+                $class_body = '';
+                foreach ($methods as $method) {
+                    $method_parameters = $method->getParameters();
+                    $isstatic = $method->isStatic() ? 'static' : '';
+                    $ispublic = $method->isPublic() ? 'public' : '';
+                    $isprivate = $method->isPrivate() ? 'private' : '';
+                    $isprotected = $method->isProtected() ? 'protected' : '';
+                    $isabstract = $method->isAbstract() ? 'abstract' : '';
+                    $isfinal = $method->isFinal() ? 'final' : '';
+                    $class_body .= PHP_EOL . "    $isstatic $ispublic $isprivate $isprotected $isabstract $isfinal function $method->name(";
+                    $i = 0;
+                    foreach ($method_parameters as $parameter) {
+                        if ($i) {
+                            $class_body .= ', ';
+                        }
+                        if (!$parameter->canBePassedByValue()) {
+                            $class_body .= '&';
+                        }
+                        $class_body .= '$' . $parameter->name;
+                        if ($parameter->isOptional()) {
+                            $default_value = $parameter->getDefaultValue();
+                            if (is_string($default_value)) {
+                                $class_body .= " = '" . $default_value . "'";
+                            } else if (false === $default_value) {
+                                $class_body .= " = false";
+                            } else if (null === $default_value) {
+                                $class_body .= " = null";
+                            } else if (is_array($default_value)) {
+                                $class_body .= " = array()";
+                            } else {
+                                $class_body .= " = " . $default_value;
+                            }
+                        }
+                        $i = 1;
+                    }
+                    $class_body .= ') {';
+                    $class_body .= PHP_EOL;
+                    $class_body .= "        \$retour = parent::$method->name(";
+                    $i = 0;
+                    foreach ($method_parameters as $parameter) {
+                        if ($i) {
+                            $class_body .= ', ';
+                        }
+                        $class_body .= '$' . $parameter->name;
+                        $i = 1;
+                    }
+                    $class_body .= ');';
+                    $class_body .= PHP_EOL;
+                    $class_body .= "        return \$retour;";
+                    $class_body .= PHP_EOL;
+                    $class_body .= '    }';
+                    $class_body .= PHP_EOL;
+                }
+                $code_to_eval = 'class ' . $elementname . ' extends ' . $prev . $elementname . ' {';
+                $code_to_eval .= $class_body;
+                $code_to_eval .= '}';
                 if (__DEBUGABLE__ && Clementine::$config['clementine_debug']['writedown_evals']) {
                     file_put_contents(__FILES_ROOT__ . '/app/evals/eval_' . $elementname . '.php', '<?php ' . PHP_EOL . $code_to_eval . PHP_EOL . '?>' . PHP_EOL);
                 }
@@ -1243,9 +1300,9 @@ class Clementine
                     ))
                 ) {
                     if (ini_get('apc.enabled')) {
-                        apc_delete(__CLEMENTINE_HOST__ . '-clementine_core-overrides_by_weight');
-                        apc_delete(__CLEMENTINE_HOST__ . '-clementine_core-overrides_by_weight_only');
-                        apc_delete(__CLEMENTINE_HOST__ . '-clementine_core-all_blocks');
+                        apc_delete('clementine_core-overrides_by_weight');
+                        apc_delete('clementine_core-overrides_by_weight_only');
+                        apc_delete('clementine_core-all_blocks');
                     }
                 }
             }
@@ -1449,16 +1506,7 @@ HTML;
     {
         if (__DEBUGABLE__ && Clementine::$config['clementine_debug'][$type]) {
             // affiche dans le tableau $this->debug l'ordre de surcharge pour ce controleur/modele
-            $tmp = $element;
-            $elements_stack = array(
-                get_class($tmp)
-            );
-            for (; $parent = get_parent_class($tmp); $tmp = $parent) {
-                if (substr($parent, -(strlen($type . '_Parent'))) == $type . '_Parent') {
-                    continue;
-                }
-                $elements_stack[] = $parent;
-            }
+            $elements_stack = $this->get_classes_stack($element, $type);
             $files_stack = Clementine::$_register['clementine_debug']['files_stack'][$type];
             $elt = array_shift($elements_stack);
             if (count($files_stack)) {
@@ -1473,7 +1521,18 @@ HTML;
                         $module_name = substr($step, 0, -strlen($final_name));
                         foreach ($differences as $diff) {
                             if (strpos($diff, $module_name) !== 0) {
-                                if ($type == 'Model' || ((substr($diff, -strlen('Action')) !== 'Action') && ($diff !== '__construct'))) {
+                                if ($type && ($type == 'Model' || ((substr($diff, -strlen('Action')) !== 'Action') && ($diff !== '__construct')))) {
+
+                                    $type_long = $type;
+                                    if ($type_long == 'ctrl') {
+                                        $type_long = 'Controller';
+                                    }
+
+                                    $element_class = strtoupper(get_class($element));
+                                    $adopter = '__CLEMENTINE_CLASS_' . str_replace(strtoupper($type_long . '_EXTENDS__'), '_' . strtoupper($type_long) . '_EXTENDS__', $element_class . '_EXTENDS__');
+                                    if (defined($adopter)) {
+                                        continue;
+                                    }
                                     Clementine::$clementine_debug['heritage'][$type][] = '<strong>' . $step . '::' . $diff . '()</strong> n\'est pas une surcharge et devrait donc s\'appeler <strong>' . $module_name . ucfirst($diff) . '()</strong>';
                                 }
                             }
@@ -1483,6 +1542,33 @@ HTML;
                 }
             }
         }
+    }
+
+    /**
+     * get_classes_stack : renvoie un tableau de toutes les classes parentes d'une class ou d'un objet
+     *
+     * @param mixed $class_or_object : classe ou objet
+     * @param mixed $type : si spécifié, on peut sauter les classes *{$type}_Parent
+     * @access public
+     * @return void
+     */
+    public function get_classes_stack($class_or_object, $type = '')
+    {
+        if ($type == 'ctrl') {
+            $type = 'controller';
+        }
+        $type = ucfirst($type);
+        $tmp = $class_or_object;
+        $elements_stack = array(
+            get_class($tmp)
+        );
+        for (; $parent = get_parent_class($tmp); $tmp = $parent) {
+            if ($type && substr($parent, -(strlen($type . '_Parent'))) == $type . '_Parent') {
+                continue;
+            }
+            $elements_stack[] = $parent;
+        }
+        return $elements_stack;
     }
 
     public function debug_overrides_module_twin($module)
