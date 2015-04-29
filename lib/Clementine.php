@@ -92,6 +92,21 @@ class Clementine
             'no_mail_if_404' => true
         ));
         $noblock = false;
+        $fromcache = null;
+        if (!empty(Clementine::$_register['use_apc'])) {
+            if ($request->server('string', 'HTTP_PRAGMA') == 'no-cache') {
+                apc_delete(__CLEMENTINE_APC_PREFIX__ . '-clementine_core-all_blocks');
+            }
+            Clementine::$_register['all_blocks'] = apc_fetch(__CLEMENTINE_APC_PREFIX__ . '-clementine_core-all_blocks', $fromcache);
+        }
+        if (!$fromcache) {
+            $mask = __FILES_ROOT__ . '/app/{*/,}*/*/view/*/{*/,}*.php';
+            Clementine::$_register['all_blocks'] = array_flip(glob($mask, GLOB_BRACE|GLOB_NOSORT|GLOB_NOCHECK));
+            unset(Clementine::$_register['all_blocks'][$mask]);
+            if (!empty(Clementine::$_register['use_apc'])) {
+                apc_store(__CLEMENTINE_APC_PREFIX__ . '-clementine_core-all_blocks', Clementine::$_register['all_blocks']);
+            }
+        }
         if (!$controller) {
             if (!$erreur_404) {
                 if ($request->INVOCATION_METHOD == 'CLI') {
@@ -102,21 +117,6 @@ class Clementine
                 $erreur_404 = 1;
             }
         } else {
-            $fromcache = null;
-            if (!empty(Clementine::$_register['use_apc'])) {
-                if ($request->server('string', 'HTTP_PRAGMA') == 'no-cache') {
-                    apc_delete(__CLEMENTINE_HOST__ . '-clementine_core-all_blocks');
-                }
-                Clementine::$_register['all_blocks'] = apc_fetch(__CLEMENTINE_HOST__ . '-clementine_core-all_blocks', $fromcache);
-            }
-            if (!$fromcache) {
-                $mask = __FILES_ROOT__ . '/app/{*/,}*/*/view/*/{*/,}*.php';
-                Clementine::$_register['all_blocks'] = array_flip(glob($mask, GLOB_BRACE|GLOB_NOSORT|GLOB_NOCHECK));
-                unset(Clementine::$_register['all_blocks'][$mask]);
-                if (!empty(Clementine::$_register['use_apc'])) {
-                    apc_store(__CLEMENTINE_HOST__ . '-clementine_core-all_blocks', Clementine::$_register['all_blocks']);
-                }
-            }
             $this->hook('before_controller_action');
             // charge le controleur demande dans la requete
             if (count((array)$controller)) {
@@ -248,9 +248,9 @@ class Clementine
         $fromcache = null;
         $all_overrides = array();
         if (!empty(Clementine::$_register['use_apc'])) {
-            $apc_key = __CLEMENTINE_HOST__ . '-clementine_core-overrides_by_weight';
+            $apc_key = __CLEMENTINE_APC_PREFIX__ . '-clementine_core-overrides_by_weight';
             if ($only_weights) {
-                $apc_key = __CLEMENTINE_HOST__ . '-clementine_core-overrides_by_weight_only';
+                $apc_key = __CLEMENTINE_APC_PREFIX__ . '-clementine_core-overrides_by_weight_only';
             }
             if (isset($_SERVER['HTTP_PRAGMA']) && $_SERVER['HTTP_PRAGMA'] == 'no-cache') {
                 apc_delete($apc_key);
@@ -1021,6 +1021,7 @@ class Clementine
         } else {
             define('__CLEMENTINE_HOST__', __SERVER_HTTP_HOST__);
         }
+        define('__CLEMENTINE_APC_PREFIX__', md5(__SERVER_HTTP_HOST__));
         // charge la config
         $config = $this->_get_config();
         // qq constantes
@@ -1243,9 +1244,9 @@ class Clementine
                     ))
                 ) {
                     if (ini_get('apc.enabled')) {
-                        apc_delete(__CLEMENTINE_HOST__ . '-clementine_core-overrides_by_weight');
-                        apc_delete(__CLEMENTINE_HOST__ . '-clementine_core-overrides_by_weight_only');
-                        apc_delete(__CLEMENTINE_HOST__ . '-clementine_core-all_blocks');
+                        apc_delete(__CLEMENTINE_APC_PREFIX__ . '-clementine_core-overrides_by_weight');
+                        apc_delete(__CLEMENTINE_APC_PREFIX__ . '-clementine_core-overrides_by_weight_only');
+                        apc_delete(__CLEMENTINE_APC_PREFIX__ . '-clementine_core-all_blocks');
                     }
                 }
             }
