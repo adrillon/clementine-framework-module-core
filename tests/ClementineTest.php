@@ -1,5 +1,5 @@
 <?php
-$_SERVER['HTTP_HOST'] = 'pasus';
+$_SERVER['HTTP_HOST'] = 'phpunit_fake_http_host';
 require_once ('../lib/Clementine.php');
 global $Clementine;
 $Clementine = new Clementine();
@@ -23,6 +23,7 @@ class ClementineTest extends PHPUnit_Framework_TestCase
         $this->assertTrue(isset($result['weight']));
         $this->assertTrue((float) $result['weight'] == $result['weight']);
         $this->assertTrue((float) $result['version'] == $result['version']);
+        $this->assertTrue($result['weight'] == 0.1);
     }
 
     public function testgetHelper()
@@ -32,4 +33,3 @@ class ClementineTest extends PHPUnit_Framework_TestCase
         $this->assertTrue('DebugHelper' == get_class($helper));
     }
 }
-?>
