@@ -75,13 +75,16 @@ class Clementine
         Clementine::$_register['mvc_generation_begin'] = microtime(true);
         Clementine::$_register['use_apc'] = ini_get('apc.enabled');
         $erreur_404 = 0;
-        $this->apply_config();
+        $early_errors = $this->apply_config();
         // (nécessaire pour map_url() qu'on appelle depuis le hook before_request) : initialise Clementine::$register['request']
         // avant même le premier getRequest(), et supprime les slashes rajoutes par magic_quotes_gpc
         Clementine::$register['request'] = new ClementineRequest();
-        if (__DEBUGABLE__) {
-            $debug = $this->getHelper('debug');
-            Clementine::$register['clementine_debug_helper'] = $debug;
+        $debug = $this->getHelper('debug');
+        Clementine::$register['clementine_debug_helper'] = $debug;
+        if (!empty($early_errors)) {
+            foreach ($early_errors as $early_error) {
+                Clementine::$register['clementine_debug_helper']->trigger_error($early_error[0], $early_error[1], $early_error[2]);
+            }
         }
         $this->_getRequestURI();
         $this->hook('before_request', Clementine::$register['request']);
@@ -567,7 +570,71 @@ class Clementine
                 }
             }
             if (isset($prev) && class_exists($prev . $elementname, false)) {
-                $code_to_eval = 'class ' . $elementname . ' extends ' . $prev . $elementname . ' {}';
+                $class_body = '';
+                if (Clementine::$config['clementine_debug']['generate_tests']) {
+                    $reflection = new ReflectionClass($prev . $elementname);
+                    $methods = $reflection->getMethods();
+                    foreach ($methods as $method) {
+                        $method_parameters = $method->getParameters();
+                        $isstatic = $method->isStatic() ? 'static' : '';
+                        $ispublic = $method->isPublic() ? 'public' : '';
+                        $isprivate = $method->isPrivate() ? 'private' : '';
+                        $isprotected = $method->isProtected() ? 'protected' : '';
+                        $isabstract = $method->isAbstract() ? 'abstract' : '';
+                        $isfinal = $method->isFinal() ? 'final' : '';
+                        $class_body .= PHP_EOL . "    $isstatic $ispublic $isprivate $isprotected $isabstract $isfinal function $method->name(";
+                        $i = 0;
+                        foreach ($method_parameters as $parameter) {
+                            if ($i) {
+                                $class_body .= ', ';
+                            }
+                            if ($parameter->isArray()) {
+                                $class_body .= 'array ';
+                            } else if ($param_type_hint = $parameter->getClass()) {
+                                $class_body .= $param_type_hint . ' ';
+                            }
+                            if (!$parameter->canBePassedByValue()) {
+                                $class_body .= '&';
+                            }
+                            $class_body .= '$' . $parameter->name;
+                            if ($parameter->isOptional()) {
+                                $default_value = $parameter->getDefaultValue();
+                                if (is_string($default_value)) {
+                                    $class_body .= " = '" . $default_value . "'";
+                                } else if (false === $default_value) {
+                                    $class_body .= " = false";
+                                } else if (null === $default_value) {
+                                    $class_body .= " = null";
+                                } else if (is_array($default_value)) {
+                                    $class_body .= " = array()";
+                                } else {
+                                    $class_body .= " = " . $default_value;
+                                }
+                            }
+                            $i = 1;
+                        }
+                        $class_body .= ') {';
+                        $class_body .= PHP_EOL;
+                        $class_body .= "        \$retour = parent::$method->name(";
+                        $i = 0;
+                        foreach ($method_parameters as $parameter) {
+                            if ($i) {
+                                $class_body .= ', ';
+                            }
+                            $class_body .= '$' . $parameter->name;
+                            $i = 1;
+                        }
+                        $class_body .= ');';
+                        $class_body .= PHP_EOL;
+                        $class_body .= "        return \$retour;";
+                        $class_body .= PHP_EOL;
+                        $class_body .= '    }';
+                        $class_body .= PHP_EOL;
+                    }
+                }
+                $code_to_eval = 'class ' . $elementname . ' extends ' . $prev . $elementname . ' {';
+                $code_to_eval .= $class_body;
+                $code_to_eval .= '}';
                 if (__DEBUGABLE__ && Clementine::$config['clementine_debug']['writedown_evals']) {
                     file_put_contents(__FILES_ROOT__ . '/app/evals/eval_' . $elementname . '.php', '<?php ' . PHP_EOL . $code_to_eval . PHP_EOL . '?>' . PHP_EOL);
                 }
@@ -989,6 +1056,7 @@ class Clementine
      */
     public function apply_config()
     {
+        $early_errors = array();
         // si appel CLI
         $usage = 'Usage : /usr/bin/php index.php "http://www.site.com" "ctrl[/action]" "[id=1&query=string]"';
         if (!isset($_SERVER['HTTP_HOST']) && !isset($_SERVER['SERVER_NAME'])) {
@@ -1187,14 +1255,27 @@ class Clementine
         // timezone
         ini_set('date.timezone', Clementine::$config['clementine_global']['date_timezone']);
         // locale de PHP
-        setlocale(LC_ALL, Clementine::$config['clementine_global']['locale_LC_ALL']);
-        setlocale(LC_COLLATE, Clementine::$config['clementine_global']['locale_LC_COLLATE']);
-        setlocale(LC_CTYPE, Clementine::$config['clementine_global']['locale_LC_CTYPE']);
-        setlocale(LC_MONETARY, Clementine::$config['clementine_global']['locale_LC_MONETARY']);
-        setlocale(LC_NUMERIC, Clementine::$config['clementine_global']['locale_LC_NUMERIC']);
-        setlocale(LC_TIME, Clementine::$config['clementine_global']['locale_LC_TIME']);
-        if (defined('LC_MESSAGES')) {
-            setlocale(LC_MESSAGES, Clementine::$config['clementine_global']['locale_LC_MESSAGES']);
+        $locales = array(
+            'LC_ALL',
+            'LC_COLLATE',
+            'LC_CTYPE',
+            'LC_MONETARY',
+            'LC_NUMERIC',
+            'LC_TIME',
+            'LC_MESSAGES',
+        );
+        foreach ($locales as $locale) {
+            if (defined($locale)) {
+                $locale_vals = explode(':', Clementine::$config['clementine_global']['locale_' . $locale]);
+                setlocale(constant($locale), $locale_vals);
+                // fallback C si la locale n'est pas disponible et Warning
+                if (!in_array(setlocale(constant($locale), 0), $locale_vals)) {
+                    setlocale(constant($locale), 'C');
+                    if (__DEBUGABLE__ && Clementine::$config['clementine_debug']['display_errors']) {
+                        $early_errors[] = array("Could not set locale as " . Clementine::$config['clementine_global']['locale_' . $locale] . " for $locale parameter, falling back to default value 'C' ", E_USER_NOTICE, 2);
+                    }
+                }
+            }
         }
         // force l'encodage du site mais n'envoie les headers que si possible (sinon PHPUnit n'aime pas...)
         if (!headers_sent()) {
@@ -1211,6 +1292,7 @@ class Clementine
             Clementine::$clementine_debug['overrides'][] = $message;
         }
         Clementine::$config = $config;
+        return $early_errors;
     }
 
     /**
@@ -1450,16 +1532,7 @@ HTML;
     {
         if (__DEBUGABLE__ && Clementine::$config['clementine_debug'][$type]) {
             // affiche dans le tableau $this->debug l'ordre de surcharge pour ce controleur/modele
-            $tmp = $element;
-            $elements_stack = array(
-                get_class($tmp)
-            );
-            for (; $parent = get_parent_class($tmp); $tmp = $parent) {
-                if (substr($parent, -(strlen($type . '_Parent'))) == $type . '_Parent') {
-                    continue;
-                }
-                $elements_stack[] = $parent;
-            }
+            $elements_stack = $this->get_classes_stack($element, $type);
             $files_stack = Clementine::$_register['clementine_debug']['files_stack'][$type];
             $elt = array_shift($elements_stack);
             if (count($files_stack)) {
@@ -1474,7 +1547,18 @@ HTML;
                         $module_name = substr($step, 0, -strlen($final_name));
                         foreach ($differences as $diff) {
                             if (strpos($diff, $module_name) !== 0) {
-                                if ($type == 'Model' || ((substr($diff, -strlen('Action')) !== 'Action') && ($diff !== '__construct'))) {
+                                if ($type && ($type == 'Model' || ((substr($diff, -strlen('Action')) !== 'Action') && ($diff !== '__construct')))) {
+
+                                    $type_long = $type;
+                                    if ($type_long == 'ctrl') {
+                                        $type_long = 'Controller';
+                                    }
+
+                                    $element_class = strtoupper(get_class($element));
+                                    $adopter = '__CLEMENTINE_CLASS_' . str_replace(strtoupper($type_long . '_EXTENDS__'), '_' . strtoupper($type_long) . '_EXTENDS__', $element_class . '_EXTENDS__');
+                                    if (defined($adopter)) {
+                                        continue;
+                                    }
                                     Clementine::$clementine_debug['heritage'][$type][] = '<strong>' . $step . '::' . $diff . '()</strong> n\'est pas une surcharge et devrait donc s\'appeler <strong>' . $module_name . ucfirst($diff) . '()</strong>';
                                 }
                             }
@@ -1484,6 +1568,33 @@ HTML;
                 }
             }
         }
+    }
+
+    /**
+     * get_classes_stack : renvoie un tableau de toutes les classes parentes d'une class ou d'un objet
+     *
+     * @param mixed $class_or_object : classe ou objet
+     * @param mixed $type : si spécifié, on peut sauter les classes *{$type}_Parent
+     * @access public
+     * @return void
+     */
+    public function get_classes_stack($class_or_object, $type = '')
+    {
+        if ($type == 'ctrl') {
+            $type = 'controller';
+        }
+        $type = ucfirst($type);
+        $tmp = $class_or_object;
+        $elements_stack = array(
+            get_class($tmp)
+        );
+        for (; $parent = get_parent_class($tmp); $tmp = $parent) {
+            if ($type && substr($parent, -(strlen($type . '_Parent'))) == $type . '_Parent') {
+                continue;
+            }
+            $elements_stack[] = $parent;
+        }
+        return $elements_stack;
     }
 
     public function debug_overrides_module_twin($module)
@@ -1601,43 +1712,44 @@ HTML;
         case E_ERROR:
             $error_type = 'Error';
             $backtrace_flags = 0;
-            $color = "\033[31m";
+            $color = "\033" . Clementine::$config['clementine_shell_colors']['error'];
             $fatal = 1;
             break;
         case E_WARNING:
             $error_type = 'Warning';
-            $color = "\033[33m";
+            $color = "\033" . Clementine::$config['clementine_shell_colors']['warning'];
             break;
         case E_PARSE:
             $error_type = 'Parse error';
             $backtrace_flags = 0;
-            $color = "\033[31m";
+            $color = "\033" . Clementine::$config['clementine_shell_colors']['error'];
             $fatal = 1;
             break;
         case E_NOTICE:
             $error_type = 'Notice';
+            $color = "\033" . Clementine::$config['clementine_shell_colors']['info'];
             break;
         case E_CORE_ERROR:
             $error_type = 'Core error';
-            $color = "\033[31m";
+            $color = "\033" . Clementine::$config['clementine_shell_colors']['error'];
             $fatal = 1;
             break;
         case E_CORE_WARNING:
             $error_type = 'Core warning';
-            $color = "\033[33m";
+            $color = "\033" . Clementine::$config['clementine_shell_colors']['warning'];
             break;
         case E_COMPILE_ERROR:
             $error_type = 'Compile error';
-            $color = "\033[31m";
+            $color = "\033" . Clementine::$config['clementine_shell_colors']['error'];
             $fatal = 1;
             break;
         case E_COMPILE_WARNING:
             $error_type = 'Compile warning';
-            $color = "\033[33m";
+            $color = "\033" . Clementine::$config['clementine_shell_colors']['warning'];
             break;
         case E_USER_ERROR:
             $error_type = 'User error';
-            $color = "\033[31m";
+            $color = "\033" . Clementine::$config['clementine_shell_colors']['error'];
             $fatal = 1;
             break;
         case 'E_USER_WARNING_NOMAIL':
@@ -1646,10 +1758,11 @@ HTML;
             if ($errno == 'E_USER_WARNING_NOMAIL') {
                 $nomail = 1;
             }
-            $color = "\033[33m";
+            $color = "\033" . Clementine::$config['clementine_shell_colors']['warning'];
             break;
         case E_USER_NOTICE:
             $error_type = 'User notice';
+            $color = "\033" . Clementine::$config['clementine_shell_colors']['info'];
             break;
         case E_STRICT:
             $error_type = 'Strict';
@@ -1665,12 +1778,12 @@ HTML;
             break;
         case E_ALL:
             $error_type = 'Unspecified error';
-            $color = "\033[31m";
+            $color = "\033" . Clementine::$config['clementine_shell_colors']['error'];
             $fatal = 1;
             break;
         default:
             $error_type = 'Unknown error';
-            $color = "\033[31m";
+            $color = "\033" . Clementine::$config['clementine_shell_colors']['error'];
             $fatal = 1;
             break;
         }
@@ -1773,40 +1886,28 @@ HTML;
      * log : error_log colored messages
      *
      * @param mixed $message : message to log
-     * @param mixed $color : custom color code, or keyword in ("info", "warn", "error", "red", "greed", "blue", "yellow")
+     * @param array $color_codes : array of successive color codes (or keywords picked from Clementine::$config['clementine_shell_colors'])
      * @access public
      * @return void
      */
-    public static function log($message, $color = "", $headline = true)
+    public static function log($message, $color_codes = "", $headline = true)
     {
-        $nocolor = "\e[0m";
-        switch ($color) {
-        case 'info':
-        case 'green':
-            $color = "\033[32m";
-            break;
-        case 'warning':
-        case 'warn':
-        case 'yellow':
-        case 'orange':
-            $color = "\033[33m";
-            break;
-        case 'fatal':
-        case 'error':
-        case 'err':
-        case 'red':
-            $color = "\033[31m";
-            break;
-        case 'blue':
-            $color = "\033[34m";
-            break;
+        $normal = "\033" . Clementine::$config['clementine_shell_colors']['normal'];
+        $color_codes = (array) $color_codes;
+        $color = '';
+        foreach ($color_codes as $color_code) {
+            if (isset(Clementine::$config['clementine_shell_colors'][$color_code])) {
+                $color .= "\033" . Clementine::$config['clementine_shell_colors'][$color_code];
+            } else {
+                $color .= $color_code;
+            }
         }
         $log = $message;
         if (is_array($message) || is_object($message)) {
             $log = print_r($message, true);
         }
         if ($color) {
-            $log.= $nocolor;
+            $log.= $normal;
         }
         $entete = '';
         if ($headline) {
@@ -2131,7 +2232,8 @@ class ClementineRequest
                     $r = array();
                 }
             } else {
-                $r = htmlentities(stripslashes($r), ENT_QUOTES, __PHP_ENCODING__);
+                // clean (slashes, null bytes) and escape input
+                $r = htmlentities(str_replace(chr(0), '', stripslashes($r)), ENT_QUOTES, __PHP_ENCODING__);
             }
         }
         return $r;

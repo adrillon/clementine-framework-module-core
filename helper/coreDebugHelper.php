@@ -218,8 +218,6 @@ class coreDebugHelper extends coreDebugHelper_Parent
                 $filepath = str_replace('/./', '/', 'app/' . $fullscope['site'] . '/' . $fullscope['scope'] . '/' . $module . '/view/' . $path . '.php');
                 echo '<input type="text" style="width: ' . (1 + (mb_strlen($filepath, __PHP_ENCODING__) / 2)) . 'em; " onclick="select(); " value="' . $filepath . '" /><br />';
             }
-            array_pop($backtrace); // masque /app/share/core/lib/index.php
-            array_pop($backtrace); // masque /index.php
             $basetxt = $file;
             if (strlen($basetxt)) {
                 $indent = 0;
@@ -232,7 +230,8 @@ class coreDebugHelper extends coreDebugHelper_Parent
                 $files = array();
                 foreach ($backtrace as $key => $trace) {
                     //if (array_key_exists('function', $trace) && array_key_exists($trace['function'], $getBlock_functions)) {
-                        if ($trace['file'] != $clementine_file) {
+                        $file_is_clementine = strpos($trace['file'], $clementine_file);
+                        if ($file_is_clementine === false) {
                             $files[] = $trace;
                         }
                     //}
