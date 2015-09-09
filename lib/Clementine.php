@@ -11,7 +11,6 @@
 class Clementine
 {
     // c'est dans cette variable que sont stockees les donnees transmises aux blocks
-    public $data;
     static public $clementine_debug = array();
     static public $config = array();
 
@@ -80,7 +79,7 @@ class Clementine
         // (nécessaire pour map_url() qu'on appelle depuis le hook before_request) : initialise Clementine::$register['request']
         // avant même le premier getRequest(), et supprime les slashes rajoutes par magic_quotes_gpc
         Clementine::$register['request'] = new ClementineRequest();
-        $debug = $this->getHelper('debug');
+        $debug = Clementine::getHelper('debug');
         Clementine::$register['clementine_debug_helper'] = $debug;
         if (!empty($early_errors)) {
             foreach ($early_errors as $early_error) {
@@ -90,7 +89,7 @@ class Clementine
         $this->_getRequestURI();
         $this->hook('before_request', Clementine::$register['request']);
         $this->populateRequest();
-        $request = $this->getRequest();
+        $request = Clementine::getRequest();
         $this->hook('before_first_getController', $request);
         $controller = $this->getController($request->CTRL, array(
             'no_mail_if_404' => true
@@ -155,7 +154,7 @@ class Clementine
         if (!$erreur_404 && !$noblock) {
             $path = $request->CTRL . '/' . $request->ACT;
             // charge la surcharge si possible, meme dans le cas de l'adoption
-            $gotblock = $controller->getBlock($path, $controller->data, $request);
+            $gotblock = Clementine::getBlock($path, $controller->data, $request);
             if (!$gotblock) {
                 header($_SERVER['SERVER_PROTOCOL'] . ' 404 Not Found', true);
                 $erreur_404 = 1;
@@ -193,11 +192,11 @@ class Clementine
         }
         $controller = $this->getController('errors');
         $action = 'err404Action';
-        $request = $this->getRequest();
-        $controller->$action($request);
-        if (!$controller->getBlock('errors/err404', $controller->data, $request)) {
+        $request = Clementine::getRequest();
+        $controller->$action($request); // $request sans faire appel à getRequest()
+        if (!Clementine::getBlock('errors/err404', $controller->data, $request)) {
             if (__DEBUGABLE__) {
-                $this->getHelper('debug')->err404_no404Block();
+                Clementine::getHelper('debug')->err404_no404Block();
             }
             echo '404 Not Found';
         }
@@ -214,14 +213,14 @@ class Clementine
     public function hook($hookname, $args = null)
     {
         // TODO: dans le DEBUG verifications, verifier qu'on n'appelle pas les hooks sans passer par cette fonction
-        $helper = $this->getHelper('hook');
+        $helper = Clementine::getHelper('hook');
         $was_called = false;
         if (method_exists($helper, $hookname)) {
             $was_called = true;
             $helper->$hookname($args);
         }
         if (__DEBUGABLE__) {
-            $this->getHelper('debug')->debugHook($hookname, $was_called);
+            Clementine::getHelper('debug')->debugHook($hookname, $was_called);
         }
     }
 
@@ -231,10 +230,10 @@ class Clementine
      * @access public
      * @return void
      */
-    public function getOverrides()
+    public static function getOverrides()
     {
         if (!(isset(Clementine::$_register['overrides']) && Clementine::$_register['overrides'])) {
-            $overrides = $this->getOverridesByWeights();
+            $overrides = Clementine::getOverridesByWeights();
             Clementine::$_register['overrides'] = $overrides;
         }
         return Clementine::$_register['overrides'];
@@ -246,7 +245,7 @@ class Clementine
      * @access public
      * @return void
      */
-    public function getOverridesByWeights()
+    public static function getOverridesByWeights()
     {
         $fromcache = null;
         $all_overrides = array();
@@ -288,15 +287,15 @@ class Clementine
                         }
                         if (is_dir($path . '/' . $obj)) {
                             if (array_key_exists($obj, $modules_weights)) {
-                                $this->debug_overrides_module_twin($obj);
+                                Clementine::debug_overrides_module_twin($obj);
                                 die();
                             }
                             $paths = glob($appdir . '/*/*/' . $obj);
                             if (count($paths) > 1) {
-                                $this->debug_overrides_module_should_be_common($obj, $paths);
+                                Clementine::debug_overrides_module_should_be_common($obj, $paths);
                                 die();
                             }
-                            $infos = $this->getModuleInfos($obj);
+                            $infos = Clementine::getModuleInfos($obj);
                             $modules_weights[$obj] = $infos['weight'];
                             $modules_types[$obj] = array(
                                 'scope' => $scope,
@@ -328,7 +327,7 @@ class Clementine
      * @access public
      * @return void
      */
-    public function getRequest()
+    public static function getRequest()
     {
         return Clementine::$register['request'];
     }
@@ -373,7 +372,7 @@ class Clementine
                 if ((count($lang_dispos) > 1) && strlen($lang_candidat)) {
                     header($_SERVER['SERVER_PROTOCOL'] . ' 404 Not Found', true);
                     if (__DEBUGABLE__) {
-                        $this->getHelper('debug')->err404_noLanguageCode();
+                        Clementine::getHelper('debug')->err404_noLanguageCode();
                     }
                     $request->CTRL = 'errors';
                     $request->ACT = 'err404';
@@ -468,7 +467,7 @@ class Clementine
      * @access private
      * @return void
      */
-    private function _require($file, $data = null, $request = null)
+    public static function _require($file, $data = null, $request = null)
     {
         require $file;
     }
@@ -483,7 +482,7 @@ class Clementine
      * @access private
      * @return void
      */
-    private function _factory($element, $type, $testonly = 0, $params = null)
+    public static function _factory($element, $type, $testonly = 0, $params = null)
     {
         if (!$lowerCaseType = $this->_getLowerCaseType($type)) {
             return false;
@@ -491,10 +490,10 @@ class Clementine
         $element = ucfirst(strtolower($element));
         $elementname = ucfirst($element) . $type;
         if (__DEBUGABLE__ && !$testonly) {
-            $this->debug_factory_init_file_stack($lowerCaseType);
+            Clementine::debug_factory_init_file_stack($lowerCaseType);
         }
         if (!class_exists($elementname, false)) {
-            $overrides = $this->getOverrides();
+            $overrides = Clementine::getOverrides();
             if (__DEBUGABLE__ && Clementine::$config['clementine_debug']['writedown_evals']) {
                 if (!is_dir(__FILES_ROOT__ . '/app/evals')) {
                     mkdir(__FILES_ROOT__ . '/app/evals');
@@ -517,17 +516,17 @@ class Clementine
                         if (defined($adopter)) {
                             if (!class_exists(constant($adopter), false)) {
                                 // strips the "Controller/Model" part
-                                $this->_factory(substr(constant($adopter), 0, -strlen($type)), $type, $testonly, $params);
+                                Clementine::_factory(substr(constant($adopter), 0, -strlen($type)), $type, $testonly, $params);
                             }
                             $code_to_eval = 'abstract class ' . $current_class . '_Parent extends ' . constant($adopter) . ' {}';
                         } else {
                             // getController can only by called from another Controller or a Hook
                             if ($type == 'Controller' || ($type == 'Helper' && $element == 'Hook')) {
-                                $code_to_eval = 'abstract class ' . $current_class . '_Parent extends Clementine {}';
+                                $code_to_eval = 'abstract class ' . $current_class . '_Parent extends Clementine' . $type . ' {}';
                             } else {
                                 $code_to_eval = 'abstract class ' . $current_class . '_Parent extends Clementine {
                                     public function getController($ctrl, $params = null) {
-                                        $this->getHelper("debug")->getControllerFromModel();
+                                        Clementine::getHelper("debug")->getControllerFromModel();
                                     }
                                 }';
                             }
@@ -538,9 +537,9 @@ class Clementine
                         eval($code_to_eval);
                     }
                     if (__DEBUGABLE__ && !$testonly) {
-                        $this->debug_factory_register_stack($lowerCaseType, $file_path);
+                        Clementine::debug_factory_register_stack($lowerCaseType, $file_path);
                     }
-                    $this->_require($file_path);
+                    Clementine::_require($file_path);
                     $prev = $current;
                 }
             }
@@ -617,14 +616,14 @@ class Clementine
             } else {
                 if ($type == 'Controller') {
                     if (__DEBUGABLE__ && !$testonly && empty($params['no_mail_if_404'])) {
-                        $this->getHelper('debug')->err404_noSuchController($elementname);
+                        Clementine::getHelper('debug')->err404_noSuchController($elementname);
                     }
                     return false;
                 } else {
                     // erreur fatale : on a demande a charger un modele qui n'existe pas
                     if (!$testonly) {
                         if (__DEBUGABLE__ && !$testonly) {
-                            $this->getHelper('debug')->errFatale_noSuchModel($type, $element);
+                            Clementine::getHelper('debug')->errFatale_noSuchModel($type, $element);
                         }
                         die();
                     }
@@ -632,13 +631,13 @@ class Clementine
             }
         }
         if ($type == 'Controller') {
-            $request = $this->getRequest();
+            $request = Clementine::getRequest();
             $new_element = new $elementname($request, $params);
         } else {
             $new_element = new $elementname($params);
         }
         if (__DEBUGABLE__ && !$testonly) {
-            $this->debug_factory($lowerCaseType, $new_element);
+            Clementine::debug_factory($lowerCaseType, $new_element);
         }
         return $new_element;
     }
@@ -674,9 +673,9 @@ class Clementine
      * @access public
      * @return void
      */
-    public function getModel($model, $params = null)
+    public static function getModel($model, $params = null)
     {
-        return $this->_factory($model, 'Model', 0, $params);
+        return Clementine::_factory($model, 'Model', 0, $params);
     }
 
     /**
@@ -686,9 +685,9 @@ class Clementine
      * @access public
      * @return void
      */
-    public function getHelper($helper, $params = null)
+    public static function getHelper($helper, $params = null)
     {
-        return $this->_factory($helper, 'Helper', 0, $params);
+        return Clementine::_factory($helper, 'Helper', 0, $params);
     }
 
     /**
@@ -701,10 +700,10 @@ class Clementine
     public function getController($ctrl, $params = null)
     {
         if (!Clementine::$_register['_forbid_getcontroller']) {
-            return $this->_factory($ctrl, 'Controller', 0, $params);
+            return Clementine::_factory($ctrl, 'Controller', 0, $params);
         }
         if (__DEBUGABLE__) {
-            $this->getHelper('debug')->getControllerFromBlock();
+            Clementine::getHelper('debug')->getControllerFromBlock();
         }
         die();
     }
@@ -719,7 +718,7 @@ class Clementine
      * @access public
      * @return void
      */
-    public function getBlock($path, $data = null, $request = null, $ignores = null, $load_parent = false, $testonly = false, $never_display_errors = false)
+    public static function getBlock($path, $data = null, $request = null, $ignores = null, $load_parent = false, $testonly = false, $never_display_errors = false)
     {
         $conf = Clementine::$config;
         ++Clementine::$_register['_forbid_getcontroller'];
@@ -729,7 +728,7 @@ class Clementine
             if (!$deb) {
                 $deb = microtime(true);
             }
-            $this->getHelper('debug')->debugBlock_init($path);
+            Clementine::getHelper('debug')->debugBlock_init($path);
         }
         $tmp_path_array = explode('/', $path);
         $path_array = array(
@@ -742,7 +741,7 @@ class Clementine
             $path_array[3] = $niveau3;
         }
         // prend le bloc du theme le plus haut possible dans la surcharge
-        $reverses = array_reverse($this->getOverrides());
+        $reverses = array_reverse(Clementine::getOverrides());
         if ($load_parent && isset(Clementine::$_register['_parent_loaded_blocks_files'][$path])) {
             $nb_shift = count(Clementine::$_register['_parent_loaded_blocks_files'][$path]);
             for (; $nb_shift; --$nb_shift) {
@@ -795,7 +794,7 @@ class Clementine
                         if ($recursion_level[$path] > $conf['module_core']['getblock_max_recursion']) {
                             // warning : recursive block call
                             if (__DEBUGABLE__) {
-                                $this->getHelper('debug')->debugBlock_warningRecursiveCall($path, $recursion_level[$path]);
+                                Clementine::getHelper('debug')->debugBlock_warningRecursiveCall($path, $recursion_level[$path]);
                             }
                             break;
                         }
@@ -809,7 +808,7 @@ class Clementine
                     Clementine::$_register['_parent_loaded_blocks'][] = $path;
                     // debug special : mise en evidence des blocs charges
                     if (__DEBUGABLE__) {
-                        $this->getHelper('debug')->debugBlock_registerStack($reverse, $module, $path, $file, array(
+                        Clementine::getHelper('debug')->debugBlock_registerStack($reverse, $module, $path, $file, array(
                             'ignores' => $ignores,
                             'is_ignored' => $a_ignorer
                         ), $load_parent);
@@ -821,13 +820,13 @@ class Clementine
                             echo "\r\n<!-- (depth " . $depth . ') begins ' . $file . " -->\r\n";
                         }
                         if (!$request) {
-                            $request = $this->getRequest();
+                            $request = Clementine::getRequest();
                         }
                         if ($never_display_errors) {
                             $old_display_errors = $conf['clementine_debug']['display_errors'];
                             $conf['clementine_debug']['display_errors'] = 0;
                         }
-                        $this->_require($file, $data, $request);
+                        Clementine::_require($file, $data, $request);
                         if ($never_display_errors) {
                             $conf['clementine_debug']['display_errors'] = $old_display_errors;
                         }
@@ -852,7 +851,7 @@ class Clementine
         } else if ($vue_affichee && !$vue_recursive) {
             if (__DEBUGABLE__) {
                 $duree = microtime(true) - $deb;
-                $this->getHelper('debug')->debugBlock_dumpStack($reverse, $module, $path_array, $duree);
+                Clementine::getHelper('debug')->debugBlock_dumpStack($reverse, $module, $path_array, $duree);
             }
         }
         if (!$found) {
@@ -863,11 +862,11 @@ class Clementine
                 if ($niveau3) {
                     $tuteur_path.= '/' . $niveau3;
                 }
-                $found = $this->getBlock($tuteur_path, $data, $request, $ignores, $load_parent, $testonly, $never_display_errors);
+                $found = Clementine::getBlock($tuteur_path, $data, $request, $ignores, $load_parent, $testonly, $never_display_errors);
             }
         }
         if (__DEBUGABLE__ && !$found && !$testonly && !$load_parent) {
-            $this->getHelper('debug')->err404_noSuchBlock($path);
+            Clementine::getHelper('debug')->err404_noSuchBlock($path);
         }
         --Clementine::$_register['_forbid_getcontroller'];
         if ($found) {
@@ -883,12 +882,12 @@ class Clementine
      * @access public
      * @return void
      */
-    public function getParentBlock($data = null, $request = null, $ignores = null, $never_display_errors = false)
+    public static function getParentBlock($data = null, $request = null, $ignores = null, $never_display_errors = false)
     {
         $parent_blocks = Clementine::$_register['_parent_loaded_blocks'];
         $last_block = array_pop($parent_blocks);
         if ($last_block) {
-            return $this->getBlock($last_block, $data, $request, $ignores, true, false, $never_display_errors);
+            return Clementine::getBlock($last_block, $data, $request, $ignores, true, false, $never_display_errors);
         } else {
             return 0;
         }
@@ -903,10 +902,10 @@ class Clementine
      * @access public
      * @return void
      */
-    public function getBlockHtml($path, $data = null, $request = null, $ignores = null, $load_parent = false, $never_display_errors = false)
+    public static function getBlockHtml($path, $data = null, $request = null, $ignores = null, $load_parent = false, $never_display_errors = false)
     {
         ob_start();
-        $this->getBlock($path, $data, $request, $ignores, $load_parent, false, $never_display_errors);
+        Clementine::getBlock($path, $data, $request, $ignores, $load_parent, false, $never_display_errors);
         $script = ob_get_contents();
         ob_end_clean();
         return $script;
@@ -947,7 +946,7 @@ class Clementine
         $element = ucfirst(strtolower($element));
         if (!class_exists($element . $type)) {
             // charge la classe si possible, car elle n'est pas deja chargee
-            $this->_factory($element, $type, 1, $params);
+            Clementine::_factory($element, $type, 1, $params);
             return class_exists($element . $type);
         }
         return true;
@@ -1004,12 +1003,12 @@ class Clementine
      * @access public
      * @return void
      */
-    public function canGetBlock($path, $data = null, $request = null, $ignores = null, $load_parent = false, $never_display_errors = false)
+    public static function canGetBlock($path, $data = null, $request = null, $ignores = null, $load_parent = false, $never_display_errors = false)
     {
         if (isset(Clementine::$_register['_canGetBlock'][$path])) {
             return 1;
         }
-        return $this->getBlock($path, $data, $request, $ignores, $load_parent, true, $never_display_errors);
+        return Clementine::getBlock($path, $data, $request, $ignores, $load_parent, true, $never_display_errors);
     }
 
     /**
@@ -1018,10 +1017,15 @@ class Clementine
      * @access public
      * @return void
      */
-    public function getCurrentModule()
+    public static function getCurrentModule()
     {
         $module = '';
-        $class = get_class($this);
+        $backtrace = debug_backtrace();
+        if (isset($backtrace[2]['class'])) {
+            $class = $backtrace[2]['class'];
+        } else {
+            $class = $backtrace[3]['class'];
+        }
         $types = array(
             'Controller',
             'Model',
@@ -1029,17 +1033,19 @@ class Clementine
         );
         foreach ($types as $type) {
             if (strpos($class, $type) !== false) {
-                $module = strtolower(substr($class, 0, -strlen($type)));
+                $module = substr($class, 0, -strlen($type));
+                $module = preg_replace('/^[a-z0-9_]*/', '', $module);
+                $module = strtolower($module);
                 break;
             }
         }
         return $module;
     }
 
-    public function getModuleConfig($module = null)
+    public static function getModuleConfig($module = null)
     {
         if (!$module) {
-            $module = $this->getCurrentModule();
+            $module = Clementine::getCurrentModule();
         }
         if (isset(Clementine::$config['module_' . $module])) {
             return Clementine::$config['module_' . $module];
@@ -1078,7 +1084,7 @@ class Clementine
             }
         }
         // XSS protection
-        $server_http_host = preg_replace('@[^a-z0-9-\.]@i', '', $insecure_server_http_host);
+        $server_http_host = preg_replace('@[^a-z0-9-:\.]@i', '', $insecure_server_http_host);
         define('__SERVER_HTTP_HOST__', $server_http_host);
         // constante indentifiant le site courant
         define('__CLEMENTINE_APC_PREFIX__', md5(__SERVER_HTTP_HOST__));
@@ -1201,7 +1207,7 @@ class Clementine
             $protocol = 'https://';
         }
         define('__WWW_ROOT__', $protocol . __SERVER_HTTP_HOST__ . __BASE_URL__);
-        $overrides = $this->getOverrides();
+        $overrides = Clementine::getOverrides();
         foreach ($overrides as $module => $override) {
             $www_root = __WWW_ROOT__ . '/app/' . $override['site'] . '/' . $override['scope'] . '/' . $module;
             $files_root = __FILES_ROOT__ . '/app/' . $override['site'] . '/' . $override['scope'] . '/' . $module;
@@ -1297,7 +1303,7 @@ class Clementine
             $message = '<table width="100%" style="font-size: 12px; line-height: 1.4em; text-align: left; "><thead><tr><th>poids</th><th>module</th><th>version</th><th>type</th></tr></thead><tbody>';
             //$reverses = array_reverse($overrides);
             foreach ($overrides as $module => $reverse) {
-                $infos = $this->getModuleInfos($module);
+                $infos = Clementine::getModuleInfos($module);
                 $message.= "<tr><td>" . $infos['weight'] . "</td><td>$module</td><td>" . $infos['version'] . "</td><td>{$overrides[$module]['scope']}</td></tr>";
             }
             $message.= '</tbody></table>';
@@ -1340,7 +1346,7 @@ class Clementine
                     }
                 }
             }
-            $overrides = $this->getOverrides();
+            $overrides = Clementine::getOverrides();
             $app_path = dirname(__FILE__) . '/../../../';
             $config = array();
             foreach ($overrides as $module => $override) {
@@ -1377,7 +1383,7 @@ class Clementine
      */
     public function debug()
     {
-        $request = $this->getRequest();
+        $request = Clementine::getRequest();
         if (__DEBUGABLE__ && !$request->AJAX && !defined('__NO_DEBUG_DIV__')) {
             $types = array(
                 'hook' => 'Hooks appelés sur cette page',
@@ -1473,7 +1479,7 @@ HTML;
 HTML;
                 }
             }
-            $debugger = $this->getHelper('debug');
+            $debugger = Clementine::getHelper('debug');
             $debugger->memoryUsage();
             $debugger->generationTime(Clementine::$_register['mvc_generation_begin'], microtime(true));
             // debug non classe dans $types
@@ -1510,7 +1516,7 @@ HTML;
         }
     }
 
-    public function debug_factory_init_file_stack($type)
+    public static function debug_factory_init_file_stack($type)
     {
         if (__DEBUGABLE__ && Clementine::$config['clementine_debug'][$type]) {
             if (!isset(Clementine::$_register['clementine_debug'])) {
@@ -1524,18 +1530,18 @@ HTML;
         }
     }
 
-    public function debug_factory_register_stack($type, $file_path)
+    public static function debug_factory_register_stack($type, $file_path)
     {
         if (__DEBUGABLE__ && Clementine::$config['clementine_debug'][$type]) {
             Clementine::$_register['clementine_debug']['files_stack'][$type][] = 'extends ' . $file_path;
         }
     }
 
-    public function debug_factory($type, $element)
+    public static function debug_factory($type, $element)
     {
         if (__DEBUGABLE__ && Clementine::$config['clementine_debug'][$type]) {
             // affiche dans le tableau $this->debug l'ordre de surcharge pour ce controleur/modele
-            $elements_stack = $this->get_classes_stack($element, $type);
+            $elements_stack = Clementine::get_classes_stack($element, $type);
             $files_stack = Clementine::$_register['clementine_debug']['files_stack'][$type];
             $elt = array_shift($elements_stack);
             if (count($files_stack)) {
@@ -1579,7 +1585,7 @@ HTML;
      * @access public
      * @return void
      */
-    public function get_classes_stack($class_or_object, $type = '')
+    public static function get_classes_stack($class_or_object, $type = '')
     {
         if ($type == 'ctrl') {
             $type = 'controller';
@@ -1598,7 +1604,7 @@ HTML;
         return $elements_stack;
     }
 
-    public function debug_overrides_module_twin($module)
+    public static function debug_overrides_module_twin($module)
     {
         // __DEBUGABLE__ n'est pas encore defini, on ne peut pas l'utiliser
         $errmsg = "<br />\n" . '<strong>Clementine fatal error</strong>: directories <em>app/share/' . $module . '</em> and <em>app/local/' . $module . '</em> can not coexist';
@@ -1606,7 +1612,7 @@ HTML;
         echo $errmsg;
     }
 
-    public function debug_overrides_module_should_be_common($module, $paths)
+    public static function debug_overrides_module_should_be_common($module, $paths)
     {
         // __DEBUGABLE__ n'est pas encore defini, on ne peut pas l'utiliser
         $errmsg = "<br />\n" . '<strong>Clementine fatal error</strong>: directory <em>' . $module . '</em> was found in multiple paths (<em>' . implode('</em>, <em>', $paths) . '</em>). It should reside in <em>app/share</em> or <em>app/local</em>';
@@ -1621,7 +1627,7 @@ HTML;
      * @access public
      * @return void
      */
-    public function getModuleInfos($module)
+    public static function getModuleInfos($module)
     {
         $module = preg_replace('/[^a-zA-Z0-9_]/S', '', $module);
         $scopes = array(
@@ -1965,6 +1971,35 @@ HTML;
         return $dump;
     }
 
+}
+
+class ClementineController
+{
+    public $data;
+
+    public function __construct($request, $params)
+    {
+    }
+
+    public static function getModel($model, $params = null)
+    {
+        return Clementine::_factory($model, 'Model', 0, $params);
+    }
+
+    public static function getHelper($model, $params = null)
+    {
+        return Clementine::_factory($model, 'Helper', 0, $params);
+    }
+
+    public function getController($ctrl, $params = null)
+    {
+        return Clementine::_factory($ctrl, 'Controller', 0, $params);
+    }
+
+    public function getBlockHtml($path, $data = null, $request = null, $ignores = null, $load_parent = false, $never_display_errors = false)
+    {
+        return Clementine::getBlockHtml($path, $data, $request, $ignores, $load_parent, $never_display_errors);
+    }
 }
 
 class ClementineRequest
