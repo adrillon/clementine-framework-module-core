@@ -18,6 +18,7 @@ class Clementine
     // variables utilisees pour que les modules puissent enregistrer dans un endroit centralisé des données
     static public $register = array();
     static private $_register = array(
+        'clementine_core-aliases' => array(),
         'all_blocks' => array(),
         '_handled_errors' => 0,
         '_parent_loaded_blocks' => array(),
@@ -107,7 +108,7 @@ class Clementine
             Clementine::$_register['all_blocks'] = array_flip(glob($mask, GLOB_BRACE|GLOB_NOSORT|GLOB_NOCHECK));
             unset(Clementine::$_register['all_blocks'][$mask]);
             if (!empty(Clementine::$_register['use_apc'])) {
-                apc_store(__CLEMENTINE_APC_PREFIX__ . '-clementine_core-all_blocks', Clementine::$_register['all_blocks']);
+                apc_store(__CLEMENTINE_APC_PREFIX__ . '-clementine_core-all_blocks', Clementine::$_register['all_blocks'], 300);
             }
         }
         if (!$controller) {
@@ -233,7 +234,7 @@ class Clementine
     public function getOverrides()
     {
         if (!(isset(Clementine::$_register['overrides']) && Clementine::$_register['overrides'])) {
-            $overrides = $this->getOverridesByWeights(false);
+            $overrides = $this->getOverridesByWeights();
             Clementine::$_register['overrides'] = $overrides;
         }
         return Clementine::$_register['overrides'];
@@ -242,23 +243,18 @@ class Clementine
     /**
      * getOverridesByWeights : returns the modules list, sorted by weight
      *
-     * @param mixed $only_weights
      * @access public
      * @return void
      */
-    public function getOverridesByWeights($only_weights = false)
+    public function getOverridesByWeights()
     {
         $fromcache = null;
         $all_overrides = array();
         if (!empty(Clementine::$_register['use_apc'])) {
-            $apc_key = __CLEMENTINE_APC_PREFIX__ . '-clementine_core-overrides_by_weight';
-            if ($only_weights) {
-                $apc_key = __CLEMENTINE_APC_PREFIX__ . '-clementine_core-overrides_by_weight_only';
-            }
             if (isset($_SERVER['HTTP_PRAGMA']) && $_SERVER['HTTP_PRAGMA'] == 'no-cache') {
-                apc_delete($apc_key);
+                apc_delete(__CLEMENTINE_APC_PREFIX__ . '-clementine_core-overrides_by_weight');
             }
-            $all_overrides = apc_fetch($apc_key, $fromcache);
+            $all_overrides = apc_fetch(__CLEMENTINE_APC_PREFIX__ . '-clementine_core-overrides_by_weight', $fromcache);
         }
         if (!$fromcache || !isset($all_overrides[__SERVER_HTTP_HOST__])) {
             // liste les dossiers contenus dans ../app/share
@@ -314,17 +310,13 @@ class Clementine
                 }
             }
             array_multisort(array_values($modules_weights), array_keys($modules_weights), $modules_weights);
-            if ($only_weights) {
-                $overrides = $modules_weights;
-            } else {
-                $overrides = array();
-                foreach ($modules_weights as $module => $weight) {
-                    $overrides[$module] = $modules_types[$module];
-                }
+            $overrides = array();
+            foreach ($modules_weights as $module => $weight) {
+                $overrides[$module] = $modules_types[$module];
             }
             $all_overrides[__SERVER_HTTP_HOST__] = $overrides;
             if (!empty(Clementine::$_register['use_apc'])) {
-                apc_store($apc_key, $all_overrides);
+                apc_store(__CLEMENTINE_APC_PREFIX__ . '-clementine_core-overrides_by_weight', $all_overrides, 300);
             }
         }
         return $all_overrides[__SERVER_HTTP_HOST__];
@@ -1082,16 +1074,29 @@ class Clementine
         $server_http_host = preg_replace('@[^a-z0-9-\.]@i', '', $insecure_server_http_host);
         define('__SERVER_HTTP_HOST__', $server_http_host);
         // constante indentifiant le site courant
-        $aliases = glob(realpath(dirname(__FILE__) . '/../../../' . __SERVER_HTTP_HOST__) . '/alias-*');
-        if (isset($aliases[0])) {
-            $current_site = substr(basename($aliases[0]), 6);
+        define('__CLEMENTINE_APC_PREFIX__', md5(__SERVER_HTTP_HOST__));
+        $fromcache = null;
+        if (!empty(Clementine::$_register['use_apc'])) {
+            if (isset($_SERVER['HTTP_PRAGMA']) && $_SERVER['HTTP_PRAGMA'] == 'no-cache') {
+                apc_delete(__CLEMENTINE_APC_PREFIX__ . '-clementine_core-aliases');
+            }
+            Clementine::$_register['clementine_core-aliases'] = apc_fetch(__CLEMENTINE_APC_PREFIX__ . '-clementine_core-aliases', $fromcache);
+        }
+        if (!$fromcache) {
+            Clementine::$_register['clementine_core-aliases'] = glob(realpath(dirname(__FILE__) . '/../../../' . __SERVER_HTTP_HOST__) . '/alias-*');
+            if (!empty(Clementine::$_register['use_apc'])) {
+                apc_store(__CLEMENTINE_APC_PREFIX__ . '-clementine_core-aliases', Clementine::$_register['clementine_core-aliases'], 300);
+            }
+        }
+        if (isset(Clementine::$_register['clementine_core-aliases'][0])) {
+            $current_site = substr(basename(Clementine::$_register['clementine_core-aliases'][0]), 6);
             define('__CLEMENTINE_HOST__', $current_site);
         } else {
             define('__CLEMENTINE_HOST__', __SERVER_HTTP_HOST__);
         }
-        define('__CLEMENTINE_APC_PREFIX__', md5(__SERVER_HTTP_HOST__));
         // charge la config
         $config = $this->_get_config();
+        Clementine::$config = $config;
         // qq constantes
         if (!defined('DEBUG_BACKTRACE_IGNORE_ARGS')) {
             define('DEBUG_BACKTRACE_IGNORE_ARGS', 0);
@@ -1309,12 +1314,7 @@ class Clementine
                 echo "<br />\n" . '<strong>Clementine fatal error</strong>: fichier de configuration manquant : /app/local/site/etc/config.ini';
                 die();
             } else {
-                // php < 5.3 compatibility
-                if (version_compare(PHP_VERSION, '5.3.0') >= 0) {
-                    $site_config = parse_ini_file($site_config_filepath, true, INI_SCANNER_RAW);
-                } else {
-                    $site_config = parse_ini_file($site_config_filepath, true);
-                }
+                $site_config = parse_ini_file($site_config_filepath, true);
                 // désactive use_apc si le debug est activé AVEC affichage des erreurs est activé (selon le fichier app/local/site/etc/config.ini uniquement car il est trop tot pour utiliser l'héritage ici)
                 if (isset($site_config['clementine_debug']) &&
                     !empty($site_config['clementine_debug']['display_errors']) &&
@@ -1325,10 +1325,11 @@ class Clementine
                         (__INVOCATION_METHOD__ == 'URL' && in_array($_SERVER['REMOTE_ADDR'], explode(',', $site_config['clementine_debug']['allowed_ip'])))
                     ))
                 ) {
-                    if (ini_get('apc.enabled')) {
+                    if (ini_get('apc.enabled') && isset($_SERVER['HTTP_PRAGMA']) && $_SERVER['HTTP_PRAGMA'] == 'no-cache') {
                         apc_delete(__CLEMENTINE_APC_PREFIX__ . '-clementine_core-overrides_by_weight');
                         apc_delete(__CLEMENTINE_APC_PREFIX__ . '-clementine_core-overrides_by_weight_only');
                         apc_delete(__CLEMENTINE_APC_PREFIX__ . '-clementine_core-all_blocks');
+                        apc_delete(__CLEMENTINE_APC_PREFIX__ . '-clementine_core-aliases');
                     }
                 }
             }
@@ -1338,12 +1339,7 @@ class Clementine
             foreach ($overrides as $module => $override) {
                 $filepath = $app_path . $override['site'] . '/' . $override['scope'] . '/' . $module . '/etc/config.ini';
                 if (is_file($filepath)) {
-                    // php < 5.3 compatibility
-                    if (version_compare(PHP_VERSION, '5.3.0') >= 0) {
-                        $tmp = parse_ini_file($filepath, true, INI_SCANNER_RAW);
-                    } else {
-                        $tmp = parse_ini_file($filepath, true);
-                    }
+                    $tmp = parse_ini_file($filepath, true);
                     if (is_array($tmp)) {
                         // surcharge : ecrase avec la derniere valeur
                         foreach ($tmp as $section_key => $section_values) {
@@ -1643,12 +1639,7 @@ HTML;
                 $filepath = realpath(dirname(__FILE__) . '/../../../' . $site . '/' . $scope . '/' . $module . '/etc/module.ini');
                 if (is_file($filepath)) {
                     $config = array();
-                    // php < 5.3 compatibility
-                    if (version_compare(PHP_VERSION, '5.3.0') >= 0) {
-                        $infos = parse_ini_file($filepath, true, INI_SCANNER_RAW);
-                    } else {
-                        $infos = parse_ini_file($filepath, true);
-                    }
+                    $infos = parse_ini_file($filepath, true);
                     if (isset($infos['weight'])) {
                         $infos['weight'] = (float)$infos['weight'];
                         return $infos;
@@ -2016,6 +2007,7 @@ class ClementineRequest
         }
         $this->SESSION = $_SESSION;
         $this->SERVER = $_SERVER;
+        $this->FILES = $_FILES;
     }
 
     /**
