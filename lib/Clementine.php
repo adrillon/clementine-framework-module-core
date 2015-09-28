@@ -520,7 +520,7 @@ class Clementine
                             }
                             $code_to_eval = 'abstract class ' . $current_class . '_Parent extends ' . constant($adopter) . ' {}';
                         } else {
-                            // getController can only by called from another Controller or a Hook 
+                            // getController can only by called from another Controller or a Hook
                             if ($type == 'Controller' || ($type == 'Helper' && $element == 'Hook')) {
                                 $code_to_eval = 'abstract class ' . $current_class . '_Parent extends Clementine' . $type . ' {}';
                             } else {
