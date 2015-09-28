@@ -1784,7 +1784,7 @@ HTML;
         $togglepre = 'onclick="var elt = this.nextSibling; var current_display = (elt.currentStyle ? elt.currentStyle[\'display\'] : document.defaultView.getComputedStyle(elt,null).getPropertyValue(\'display\')); if (typeof(this.previous_display) == \'undefined\') { this.previous_display = (current_display != \'none\' ? current_display : \'block\') }; elt.style.display = (current_display != \'none\' ? \'none\' : this.previous_display); return false; "';
         $display_error = PHP_EOL . '<br />' . PHP_EOL . '<strong style="' . $strongstyle . '; background-color: #666666; margin: 0 5px 5px 0; " ' . $togglepre . '>#' . Clementine::$_register['_handled_errors'] . ' ' . $error_type . PHP_EOL . '</strong><div style="position: relative; z-index: 999; display: inline; background-color: #FFF; color: #000; font-family: serif; ">';
         $display_error_log = PHP_EOL . '#' . Clementine::$_register['_handled_errors'] . ' ' . $error_type . ': ';
-        $display_error.= PHP_EOL . $error_content;
+        $display_error.= PHP_EOL . PHP_EOL . $error_content . PHP_EOL;
         $display_error_log.= $error_content_log;
         if ($errfile && $errline) {
             $highlighted_content = highlight_string(file_get_contents($errfile), true);
