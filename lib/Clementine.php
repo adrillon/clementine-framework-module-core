@@ -91,7 +91,7 @@ class Clementine
         $this->hook('before_request', Clementine::$register['request']);
         $this->populateRequest();
         $request = $this->getRequest();
-        $this->hook('before_first_getController');
+        $this->hook('before_first_getController', $request);
         $controller = $this->getController($request->CTRL, array(
             'no_mail_if_404' => true
         ));
@@ -392,17 +392,17 @@ class Clementine
                 }
             }
             $request->ARGS = $args;
+            $currequest = array(
+                'CTRL' => $request->CTRL,
+                'ACT' => $request->ACT,
+                'ARGS' => $request->ARGS
+            );
+            $curpage = implode('/', $currequest);
+            $request->EQUIV = array();
             if (count($lang_dispos) > 1) {
                 define('__BASE__', __BASE_URL__ . '/' . $request->LANG);
                 define('__WWW__', __WWW_ROOT__ . '/' . $request->LANG);
                 // URL equivalentes dans les autres langues
-                $currequest = array(
-                    'CTRL' => $request->CTRL,
-                    'ACT' => $request->ACT,
-                    'ARGS' => $request->ARGS
-                );
-                $curpage = implode('/', $currequest);
-                $request->EQUIV = array();
                 foreach ($lang_dispos as $lang) {
                     $request->EQUIV[$lang] = __WWW_ROOT__ . '/' . $lang . '/' . $curpage;
                 }
@@ -410,16 +410,10 @@ class Clementine
                 define('__BASE__', __BASE_URL__);
                 define('__WWW__', __WWW_ROOT__);
                 // URL equivalente de la page courante
-                $currequest = array(
-                    'CTRL' => $request->CTRL,
-                    'ACT' => $request->ACT,
-                    'ARGS' => $request->ARGS
-                );
-                $curpage = implode('/', $currequest);
-                $request->EQUIV = array();
                 $request->EQUIV[$request->LANG] = __WWW_ROOT__ . '/' . $curpage;
             }
             // commodité : enregistre l'URL complète
+            $request->URL = '/' . $curpage;
             $request->FULLURL = $request->EQUIV[$request->LANG];
             // la requete est-elle une requete en AJAX ?
             $request->AJAX = (isset($_SERVER['HTTP_X_REQUESTED_WITH']) && $_SERVER['HTTP_X_REQUESTED_WITH'] == 'XMLHttpRequest') ? 1 : 0;
@@ -538,10 +532,10 @@ class Clementine
                             }
                             $code_to_eval = 'abstract class ' . $current_class . '_Parent extends ' . constant($adopter) . ' {}';
                         } else {
-                            if ($type == 'Controller') {
+                            // getController can only by called from another Controller or a Hook
+                            if ($type == 'Controller' || ($type == 'Helper' && $element == 'Hook')) {
                                 $code_to_eval = 'abstract class ' . $current_class . '_Parent extends Clementine {}';
                             } else {
-                                // desactive les appels a getController depuis Model et Helper
                                 $code_to_eval = 'abstract class ' . $current_class . '_Parent extends Clementine {
                                     public function getController($ctrl, $params = null) {
                                         $this->getHelper("debug")->getControllerFromModel();
@@ -1990,9 +1984,13 @@ class ClementineRequest
         }
         $this->REMOTE_ADDR = $_SERVER['REMOTE_ADDR'];
         $this->DATE = date('Y-m-d H:i:s', $_SERVER['REQUEST_TIME']);
-        // populate request
-        if (!session_id()) {
-            session_start();
+        // dont start session for CORS preflight
+        $this->SESSION = array();
+        if ($this->METHOD != 'OPTIONS') {
+            if (!session_id()) {
+                session_start();
+                $this->SESSION = $_SESSION;
+            }
         }
         if (get_magic_quotes_gpc()) {
             $this->GET = $this->stripslashesRecursive($_GET);
@@ -2005,7 +2003,6 @@ class ClementineRequest
             $this->COOKIE = $_COOKIE;
             $this->REQUEST = $_REQUEST;
         }
-        $this->SESSION = $_SESSION;
         $this->SERVER = $_SERVER;
         $this->FILES = $_FILES;
     }
