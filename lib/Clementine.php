@@ -1020,6 +1020,8 @@ class Clementine
     public static function getCurrentModule()
     {
         $module = '';
+        //TODO: verifier cette fonction car je crains qu'elle ne soit devenue fausse
+        //le remplacement de get_class($this) par $backtrace n'est pas forcement fiable
         $backtrace = debug_backtrace();
         if (isset($backtrace[2]['class'])) {
             $class = $backtrace[2]['class'];
