@@ -1772,6 +1772,15 @@ HTML;
             $fatal = 1;
             break;
         }
+        if ($fatal) {
+            if (!headers_sent()) {
+                if (__INVOCATION_METHOD__ == 'URL') {
+                    header($_SERVER['SERVER_PROTOCOL'] . ' 500 Internal Server Error', true);
+                } else {
+                    header('CLI' . ' 500 Internal Server Error', true);
+                }
+            }
+        }
         // TODO: les onclick et les styles inline c'est pas terrible mais c'est autonome... trouver une meilleure solution
         $prestyle = 'background: #EEE; border: 2px solid #333; border-radius: 5px; padding: 1em; margin: 1em; text-align: left; font-family: Courier New; font-size: 13px; line-height: 1.4em; ';
         $strongstyle = 'cursor: pointer; background: #999999; border: 1px solid #555555; border-radius: 1em 1em 1em 1em; box-shadow: 1px 3px 4px rgba(64, 64, 64, 0.3); color: #FFFFFF; font-size: 10px; font-weight: bold; padding: 0.3em 1em; text-shadow: 0 1px 1px #000000; display: inline-block; margin: 0 0 5px 5px; position: relative; z-index: 999; ';
