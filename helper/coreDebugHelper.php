@@ -35,7 +35,7 @@ class coreDebugHelper extends coreDebugHelper_Parent
         if (isset($errtypes[$error_type])) {
             $errtype = $errtypes[$error_type];
         }
-        if (__DEBUGABLE__ || (
+        if (__DEBUGABLE__ || Clementine::$config['clementine_debug']['log_errors'] || (
                 Clementine::$config['clementine_debug']['send_errors_by_email'] &&
                 Clementine::$config['clementine_debug']['send_errors_by_email_max'] &&
                 Clementine::$_register['_handled_errors'] <= Clementine::$config['clementine_debug']['send_errors_by_email_max']
@@ -44,6 +44,13 @@ class coreDebugHelper extends coreDebugHelper_Parent
             Clementine::clementine_error_handler($error_type, $error_msg, $errfile, $errline);
         }
         if ($error_type == E_USER_ERROR) {
+            if (!headers_sent()) {
+                if (__INVOCATION_METHOD__ == 'URL') {
+                    header($_SERVER['SERVER_PROTOCOL'] . ' 500 Internal Server Error', true);
+                } else {
+                    header('CLI' . ' 500 Internal Server Error', true);
+                }
+            }
             die();
         }
         if (!isset($errtypes[$error_type])) {
