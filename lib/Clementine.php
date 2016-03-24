@@ -1690,13 +1690,11 @@ HTML;
             $error_content_log.= " in $errfile:$errline";
         }
         $error_content.= PHP_EOL;
-        $backtrace_flags = DEBUG_BACKTRACE_IGNORE_ARGS;
         $nomail = 0;
         $color = false;
         switch ($errno) {
         case E_ERROR:
             $error_type = 'Error';
-            $backtrace_flags = 0;
             $color = "\033" . Clementine::$config['clementine_shell_colors']['error'];
             $fatal = 1;
             break;
@@ -1706,7 +1704,6 @@ HTML;
             break;
         case E_PARSE:
             $error_type = 'Parse error';
-            $backtrace_flags = 0;
             $color = "\033" . Clementine::$config['clementine_shell_colors']['error'];
             $fatal = 1;
             break;
@@ -1817,7 +1814,7 @@ HTML;
         $debug_message = $display_error;
         $request_dump = Clementine::dump(Clementine::$register['request'], true);
         $server_dump = Clementine::dump($_SERVER, true);
-        $debug_backtrace = Clementine::dump(debug_backtrace($backtrace_flags) , true);
+        $debug_backtrace = Clementine::dump(debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS) , true);
         $debug_message = $display_error;
         $debug_message.= PHP_EOL . '<strong style="' . $strongstyle . '" ' . $togglepre . '>' . PHP_EOL . 'Request dump' . PHP_EOL . '</strong>';
         $debug_message.= '<pre class="clementine_error_handler_error" style="' . $prestyle . '">' . $request_dump . '</pre>';
