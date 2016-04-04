@@ -423,7 +423,6 @@ class Clementine
             $request->GET = Clementine::$register['request']->GET;
             $request->POST = Clementine::$register['request']->POST;
             $request->COOKIE = Clementine::$register['request']->COOKIE;
-            $request->SESSION = Clementine::$register['request']->SESSION;
             $request->SERVER = Clementine::$register['request']->SERVER;
             $request->REQUEST = Clementine::$register['request']->REQUEST;
             $request->METHOD = Clementine::$register['request']->METHOD;
@@ -1813,13 +1812,13 @@ HTML;
         }
         $debug_message = $display_error;
         $request_dump = Clementine::dump(Clementine::$register['request'], true);
-        $server_dump = Clementine::dump($_SERVER, true);
+        $session_dump = Clementine::dump($_SESSION, true);
         $debug_backtrace = Clementine::dump(debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS) , true);
         $debug_message = $display_error;
         $debug_message.= PHP_EOL . '<strong style="' . $strongstyle . '" ' . $togglepre . '>' . PHP_EOL . 'Request dump' . PHP_EOL . '</strong>';
         $debug_message.= '<pre class="clementine_error_handler_error" style="' . $prestyle . '">' . $request_dump . '</pre>';
-        $debug_message.= PHP_EOL . '<strong style="' . $strongstyle . '" ' . $togglepre . '>' . PHP_EOL . 'Server dump' . PHP_EOL . '</strong>';
-        $debug_message.= '<pre class="clementine_error_handler_error" style="' . $prestyle . '">' . $server_dump . '</pre>';
+        $debug_message.= PHP_EOL . '<strong style="' . $strongstyle . '" ' . $togglepre . '>' . PHP_EOL . 'Session dump' . PHP_EOL . '</strong>';
+        $debug_message.= '<pre class="clementine_error_handler_error" style="' . $prestyle . '">' . $session_dump . '</pre>';
         $debug_message.= PHP_EOL . '<strong style="' . $strongstyle . '" ' . $togglepre . '>' . PHP_EOL . 'Debug_backtrace' . PHP_EOL . '</strong>';
         $debug_message.= '<pre class="clementine_error_handler_error" style="' . $prestyle . '">' . $debug_backtrace . '</pre>';
         $debug_message.= '</div>';
@@ -1993,12 +1992,9 @@ class ClementineRequest
         $this->REMOTE_ADDR = $_SERVER['REMOTE_ADDR'];
         $this->DATE = date('Y-m-d H:i:s', $_SERVER['REQUEST_TIME']);
         // dont start session for CORS preflight
-        $this->SESSION = array();
-        if ($this->METHOD != 'OPTIONS') {
-            if (!session_id()) {
-                session_start();
-                $this->SESSION = $_SESSION;
-            }
+        if ($this->METHOD != 'OPTIONS' && \
+            Clementine::$config['module_core']['session_start'] && !(session_id())) {
+            session_start();
         }
         if (get_magic_quotes_gpc()) {
             $this->GET = $this->stripslashesRecursive($_GET);
@@ -2158,7 +2154,7 @@ class ClementineRequest
         $params = array_merge($options, array(
             'type' => $type,
             'key' => $key,
-            'array' => $this->SESSION,
+            'array' => $_SESSION,
         ));
         return $this->getFromGPC($params);
     }
