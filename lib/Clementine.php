@@ -194,7 +194,7 @@ class Clementine
         $controller = $this->getController('errors');
         $action = 'err404Action';
         $request = $this->getRequest();
-        $controller->$action($request); // $request sans faire appel à getRequest()
+        $controller->$action($request);
         if (!$controller->getBlock('errors/err404', $controller->data, $request)) {
             if (__DEBUGABLE__) {
                 $this->getHelper('debug')->err404_no404Block();
@@ -485,23 +485,13 @@ class Clementine
      */
     private function _factory($element, $type, $testonly = 0, $params = null)
     {
-        switch ($type) {
-        case 'Model':
-            $type_short = 'model';
-            break;
-        case 'Helper':
-            $type_short = 'helper';
-            break;
-        case 'Controller':
-            $type_short = 'ctrl';
-            break;
-        default:
+        if (!$lowerCaseType = $this->_getLowerCaseType($type)) {
             return false;
         }
         $element = ucfirst(strtolower($element));
         $elementname = ucfirst($element) . $type;
         if (__DEBUGABLE__ && !$testonly) {
-            $this->debug_factory_init_file_stack($type_short);
+            $this->debug_factory_init_file_stack($lowerCaseType);
         }
         if (!class_exists($elementname, false)) {
             $overrides = $this->getOverrides();
@@ -512,7 +502,7 @@ class Clementine
             }
             foreach ($overrides as $current => $override) {
                 $current_class = $current . $elementname;
-                $file_path = str_replace('/./', '/', __FILES_ROOT__ . '/app/' . $override['site'] . '/' . $override['scope'] . '/' . $current . '/' . $type_short . '/' . $current_class . '.php');
+                $file_path = str_replace('/./', '/', __FILES_ROOT__ . '/app/' . $override['site'] . '/' . $override['scope'] . '/' . $current . '/' . $lowerCaseType . '/' . $current_class . '.php');
                 if (file_exists($file_path)) {
                     if (isset($prev)) {
                         $parent_class = $prev . $elementname;
@@ -548,7 +538,7 @@ class Clementine
                         eval($code_to_eval);
                     }
                     if (__DEBUGABLE__ && !$testonly) {
-                        $this->debug_factory_register_stack($type_short, $file_path);
+                        $this->debug_factory_register_stack($lowerCaseType, $file_path);
                     }
                     $this->_require($file_path);
                     $prev = $current;
@@ -648,9 +638,33 @@ class Clementine
             $new_element = new $elementname($params);
         }
         if (__DEBUGABLE__ && !$testonly) {
-            $this->debug_factory($type_short, $new_element);
+            $this->debug_factory($lowerCaseType, $new_element);
         }
         return $new_element;
+    }
+
+    /**
+     * getShortType : renvoie le type raccourci correspondant à un type prédéfini
+     *
+     * @param mixed $type
+     * @access public
+     * @return void
+     */
+    public function _getLowerCaseType($type)
+    {
+        switch ($type) {
+        case 'Model':
+            return 'model';
+            break;
+        case 'Helper':
+            return 'helper';
+            break;
+        case 'Controller':
+            return 'ctrl';
+            break;
+        default:
+            return false;
+        }
     }
 
     /**
@@ -1537,12 +1551,10 @@ HTML;
                         foreach ($differences as $diff) {
                             if (strpos($diff, $module_name) !== 0) {
                                 if ($type && ($type == 'Model' || ((substr($diff, -strlen('Action')) !== 'Action') && ($diff !== '__construct')))) {
-
                                     $type_long = $type;
                                     if ($type_long == 'ctrl') {
                                         $type_long = 'Controller';
                                     }
-
                                     $element_class = strtoupper(get_class($element));
                                     $adopter = '__CLEMENTINE_CLASS_' . str_replace(strtoupper($type_long . '_EXTENDS__'), '_' . strtoupper($type_long) . '_EXTENDS__', $element_class . '_EXTENDS__');
                                     if (defined($adopter)) {
@@ -1812,13 +1824,15 @@ HTML;
         }
         $debug_message = $display_error;
         $request_dump = Clementine::dump(Clementine::$register['request'], true);
-        $session_dump = Clementine::dump($_SESSION, true);
         $debug_backtrace = Clementine::dump(debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS) , true);
         $debug_message = $display_error;
         $debug_message.= PHP_EOL . '<strong style="' . $strongstyle . '" ' . $togglepre . '>' . PHP_EOL . 'Request dump' . PHP_EOL . '</strong>';
         $debug_message.= '<pre class="clementine_error_handler_error" style="' . $prestyle . '">' . $request_dump . '</pre>';
         $debug_message.= PHP_EOL . '<strong style="' . $strongstyle . '" ' . $togglepre . '>' . PHP_EOL . 'Session dump' . PHP_EOL . '</strong>';
-        $debug_message.= '<pre class="clementine_error_handler_error" style="' . $prestyle . '">' . $session_dump . '</pre>';
+        if (isset($_SESSION)) {
+            $session_dump = Clementine::dump($_SESSION, true);
+            $debug_message.= '<pre class="clementine_error_handler_error" style="' . $prestyle . '">' . $session_dump . '</pre>';
+        }
         $debug_message.= PHP_EOL . '<strong style="' . $strongstyle . '" ' . $togglepre . '>' . PHP_EOL . 'Debug_backtrace' . PHP_EOL . '</strong>';
         $debug_message.= '<pre class="clementine_error_handler_error" style="' . $prestyle . '">' . $debug_backtrace . '</pre>';
         $debug_message.= '</div>';
