@@ -291,11 +291,6 @@ class Clementine
                                 $this->debug_overrides_module_twin($obj);
                                 die();
                             }
-                            $paths = glob($appdir . '/*/*/' . $obj);
-                            if (count($paths) > 1) {
-                                $this->debug_overrides_module_should_be_common($obj, $paths);
-                                die();
-                            }
                             $infos = $this->getModuleInfos($obj);
                             $modules_weights[$obj] = $infos['weight'];
                             $modules_types[$obj] = array(
@@ -1078,7 +1073,7 @@ class Clementine
             }
         }
         // XSS protection
-        $server_http_host = preg_replace('@[^a-z0-9-\.]@i', '', $insecure_server_http_host);
+        $server_http_host = preg_replace('@[^a-z0-9\._-]@i', '', $insecure_server_http_host);
         define('__SERVER_HTTP_HOST__', $server_http_host);
         // constante indentifiant le site courant
         define('__CLEMENTINE_APC_PREFIX__', md5(__SERVER_HTTP_HOST__));
@@ -1100,6 +1095,38 @@ class Clementine
             define('__CLEMENTINE_HOST__', $current_site);
         } else {
             define('__CLEMENTINE_HOST__', __SERVER_HTTP_HOST__);
+        }
+        $uname = explode(' ', php_uname('s'));
+        define('__OS__', strtolower($uname[0]));
+        unset($uname);
+        if (__INVOCATION_METHOD__ == 'URL') {
+            $base_url = substr(__FILE__, strlen(preg_replace('/\/$/S', '', $_SERVER['DOCUMENT_ROOT'])));
+            $base_url = substr($base_url, 0, -strlen('/app/share/core/lib/Clementine.php'));
+            if (__OS__ == 'windows') {
+                $base_url = str_replace('\\', '/', $base_url);
+            }
+            define('__BASE_URL__', $base_url);
+            $files_root = preg_replace('@//*@', '/', $_SERVER['DOCUMENT_ROOT'] . __BASE_URL__);
+            if ($files_root != '/') {
+                $files_root = preg_replace('@/$@', '', $files_root);
+            }
+            define('__FILES_ROOT__', $files_root);
+        } else {
+            $base_url = preg_replace('@^https?://[^/]+@i', '', $argv[1]);
+            define('__BASE_URL__', $base_url);
+            define('__FILES_ROOT__', realpath(dirname(__FILE__) . '/../../../../'));
+        }
+        $protocol = 'http://';
+        if (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS']) {
+            $protocol = 'https://';
+        }
+        define('__WWW_ROOT__', $protocol . __SERVER_HTTP_HOST__ . __BASE_URL__);
+        $overrides = $this->getOverrides();
+        foreach ($overrides as $module => $override) {
+            $www_root = __WWW_ROOT__ . '/app/' . $override['site'] . '/' . $override['scope'] . '/' . $module;
+            $files_root = __FILES_ROOT__ . '/app/' . $override['site'] . '/' . $override['scope'] . '/' . $module;
+            define('__WWW_ROOT_' . strtoupper($module) . '__', str_replace('/./', '/', $www_root));
+            define('__FILES_ROOT_' . strtoupper($module) . '__', str_replace('/./', '/', $files_root));
         }
         // charge la config
         $config = $this->_get_config();
@@ -1152,35 +1179,6 @@ class Clementine
             }
         }
         // valeurs par défaut et calcul de variables de configuration si elles n'ont pas deja ete definies
-        if (isset($config['clementine_global']['os'])) {
-            define('__OS__', $config['clementine_global']['os']);
-        } else {
-            $uname = explode(' ', php_uname('s'));
-            define('__OS__', strtolower($uname[0]));
-            unset($uname);
-        }
-        if (isset($config['clementine_global']['base_url'])) {
-            define('__BASE_URL__', $config['clementine_global']['base_url']);
-        } else {
-            // selon appel HTTP ou CLI
-            if (__INVOCATION_METHOD__ == 'URL') {
-                $base_url = substr(__FILE__, strlen(preg_replace('/\/$/S', '', $_SERVER['DOCUMENT_ROOT'])));
-                $base_url = substr($base_url, 0, -strlen('/app/share/core/lib/Clementine.php'));
-                if (__OS__ == 'windows') {
-                    $base_url = str_replace('\\', '/', $base_url);
-                }
-                define('__BASE_URL__', $base_url);
-                $files_root = preg_replace('@//*@', '/', $_SERVER['DOCUMENT_ROOT'] . __BASE_URL__);
-                if ($files_root != '/') {
-                    $files_root = preg_replace('@/$@', '', $files_root);
-                }
-                define('__FILES_ROOT__', $files_root);
-            } else {
-                $base_url = preg_replace('@^https?://[^/]+@i', '', $argv[1]);
-                define('__BASE_URL__', $base_url);
-                define('__FILES_ROOT__', realpath(dirname(__FILE__) . '/../../../../'));
-            }
-        }
         if (isset($config['clementine_global']['php_encoding'])) {
             define('__PHP_ENCODING__', $config['clementine_global']['php_encoding']);
         } else {
@@ -1195,18 +1193,6 @@ class Clementine
             define('__SQL_ENCODING__', $config['clementine_global']['sql_encoding']);
         } else {
             define('__SQL_ENCODING__', 'utf8');
-        }
-        $protocol = 'http://';
-        if (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS']) {
-            $protocol = 'https://';
-        }
-        define('__WWW_ROOT__', $protocol . __SERVER_HTTP_HOST__ . __BASE_URL__);
-        $overrides = $this->getOverrides();
-        foreach ($overrides as $module => $override) {
-            $www_root = __WWW_ROOT__ . '/app/' . $override['site'] . '/' . $override['scope'] . '/' . $module;
-            $files_root = __FILES_ROOT__ . '/app/' . $override['site'] . '/' . $override['scope'] . '/' . $module;
-            define('__WWW_ROOT_' . strtoupper($module) . '__', str_replace('/./', '/', $www_root));
-            define('__FILES_ROOT_' . strtoupper($module) . '__', str_replace('/./', '/', $files_root));
         }
         if (isset($config['clementine_debug']) &&
             !empty($config['clementine_debug']['enabled']) &&
@@ -1316,7 +1302,12 @@ class Clementine
     private function _get_config()
     {
         if (!(isset(Clementine::$config['clementine_global']))) {
-            $site_config_filepath = realpath(dirname(__FILE__) . '/../../../local/site/etc/config.ini');
+            // first try to use current site's config.ini file
+            // fallback to app/local/site/etc/config.ini if not available
+            $site_config_filepath = __FILES_ROOT_SITE__ . '/etc/config.ini';
+            if (!is_file($site_config_filepath)) {
+                $site_config_filepath = realpath(dirname(__FILE__) . '/../../../local/site/etc/config.ini');
+            }
             if (!is_file($site_config_filepath)) {
                 echo "<br />\n" . '<strong>Clementine fatal error</strong>: fichier de configuration manquant : /app/local/site/etc/config.ini';
                 die();
