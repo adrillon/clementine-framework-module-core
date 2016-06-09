@@ -1304,12 +1304,16 @@ class Clementine
         if (!(isset(Clementine::$config['clementine_global']))) {
             // first try to use current site's config.ini file
             // fallback to app/local/site/etc/config.ini if not available
-            $site_config_filepath = __FILES_ROOT_SITE__ . '/etc/config.ini';
+            $site_config_filepath = '';
+            if (defined('__FILES_ROOT_SITE__')) {
+                $site_config_filepath = __FILES_ROOT_SITE__ . '/etc/config.ini';
+            }
             if (!is_file($site_config_filepath)) {
                 $site_config_filepath = realpath(dirname(__FILE__) . '/../../../local/site/etc/config.ini');
             }
             if (!is_file($site_config_filepath)) {
-                echo "<br />\n" . '<strong>Clementine fatal error</strong>: fichier de configuration manquant : /app/local/site/etc/config.ini';
+                $site_config_filepath_errmsg = '<em>/app/local/site/etc/config.ini</em> ou <em>/app/' . htmlentities(__SERVER_HTTP_HOST__, ENT_QUOTES) . ' /local/site/etc/config.ini</em>';
+                echo "<br />\n" . '<strong>Clementine fatal error</strong>: fichier de configuration manquant (' . $site_config_filepath_errmsg . ')';
                 die();
             } else {
                 $site_config = parse_ini_file($site_config_filepath, true);
@@ -1319,7 +1323,7 @@ class Clementine
                     !empty($site_config['clementine_debug']['enabled']) &&
                     isset($site_config['clementine_debug']['allowed_ip']) &&
                     ((!$site_config['clementine_debug']['allowed_ip']) || (
-                        (__INVOCATION_METHOD__ == 'CLI') || 
+                        (__INVOCATION_METHOD__ == 'CLI') ||
                         (__INVOCATION_METHOD__ == 'URL' && in_array($_SERVER['REMOTE_ADDR'], explode(',', $site_config['clementine_debug']['allowed_ip'])))
                     ))
                 ) {
