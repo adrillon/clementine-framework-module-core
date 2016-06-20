@@ -38,17 +38,18 @@ class Clementine
     public function __call($name, $args)
     {
         $call_parent = 0;
-        $trace = debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS);
-        // verifie si la fonction est appelee au moyen de parent::
-        if (isset($trace[1]) && isset($trace[2]) && isset($trace[1]['class']) && isset($trace[1]['function']) && isset($trace[2]['class']) && isset($trace[2]['function'])) {
-            if ((strtolower($trace[1]['function']) == strtolower($trace[2]['function'])) && (strtolower(get_parent_class($trace[2]['class'])) == strtolower($trace[1]['class']))) {
-                // l'appel de parent::method() ne doit pas planter, car sinon il n'y a plus d'independance des modules
-                $call_parent = 1;
-            }
+        // get all functions in child class
+        $original_class = get_parent_class($this);
+        $original_parent_class = get_parent_class($original_class);
+        $child_methods = array_diff(get_class_methods($original_class) , get_class_methods($original_parent_class));
+        // if the function there is in child class, probably it was called from there
+        if (in_array($name, $child_methods)) {
+            // l'appel de parent::method() ne doit pas planter, car sinon il n'y a plus d'independance des modules
+            $call_parent = 1;
         }
         if (!$call_parent) {
             if (!defined('__DEBUGABLE__') || __DEBUGABLE__) {
-                $methodname = $trace[1]['class'] . $trace[1]['type'] . $trace[1]['function'] . '()';
+                $methodname = $original_parent_class . '::' . $name . '()';
                 Clementine::$register['clementine_debug_helper']->trigger_error("Call to undefined method " . $methodname, E_USER_ERROR, 2);
             }
             die();
@@ -392,23 +393,22 @@ class Clementine
                 'ACT' => $request->ACT,
                 'ARGS' => $request->ARGS
             );
-            $curpage = implode('/', $currequest);
             $request->EQUIV = array();
             if (count($lang_dispos) > 1) {
                 define('__BASE__', __BASE_URL__ . '/' . $request->LANG);
                 define('__WWW__', __WWW_ROOT__ . '/' . $request->LANG);
                 // URL equivalentes dans les autres langues
                 foreach ($lang_dispos as $lang) {
-                    $request->EQUIV[$lang] = __WWW_ROOT__ . '/' . $lang . '/' . $curpage;
+                    $request->EQUIV[$lang] = __WWW_ROOT__ . '/' . $lang . '/' . $tmp_request_uri;
                 }
             } else {
                 define('__BASE__', __BASE_URL__);
                 define('__WWW__', __WWW_ROOT__);
                 // URL equivalente de la page courante
-                $request->EQUIV[$request->LANG] = __WWW_ROOT__ . '/' . $curpage;
+                $request->EQUIV[$request->LANG] = __WWW_ROOT__ . '/' . $tmp_request_uri;
             }
             // commodité : enregistre l'URL complète
-            $request->URL = '/' . $curpage;
+            $request->URL = '/' . $tmp_request_uri;
             $request->FULLURL = $request->EQUIV[$request->LANG];
             // la requete est-elle une requete en AJAX ?
             $request->AJAX = (isset($_SERVER['HTTP_X_REQUESTED_WITH']) && $_SERVER['HTTP_X_REQUESTED_WITH'] == 'XMLHttpRequest') ? 1 : 0;
@@ -449,6 +449,9 @@ class Clementine
                         $action = $ctrl_act[1];
                         Clementine::$register['request_uri'].= '/' . $action;
                     }
+                }
+                if (isset($argv[2])) {
+                    Clementine::$register['request_uri'].= '?' . $argv[3];
                 }
             }
         }
@@ -1059,6 +1062,21 @@ class Clementine
                 define('__INVOCATION_METHOD__', 'CLI');
                 $insecure_server_http_host = preg_replace('@^https?://@i', '', $argv[1]);
                 $insecure_server_http_host = preg_replace('@/.*@', '', $insecure_server_http_host);
+                // si appel en CLI, on reconstruit _GET a partir de argv[3]
+                global $argv;
+                if (isset($argv[3])) {
+                    $tmp_GET_pairs = explode('&', $argv[3]);
+                    foreach ($tmp_GET_pairs as $str_pair) {
+                        $pair = explode('=', $str_pair, 2);
+                        if (isset($pair[1])) {
+                            $_GET[$pair[0]] = $pair[1];
+                        } else {
+                            $_GET[$pair[0]] = '';
+                        }
+                    }
+                }
+                // si appel en CLI, on considère qu'on est en local
+                $_SERVER['REMOTE_ADDR'] = '127.0.0.1';
             } else {
                 echo $usage;
                 die();
@@ -1821,7 +1839,9 @@ HTML;
         $request_dump = Clementine::dump(Clementine::$register['request'], true);
         $debug_backtrace = Clementine::dump(debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS) , true);
         $debug_message = $display_error;
-        $debug_message.= PHP_EOL . '<strong style="' . $strongstyle . '" ' . $togglepre . '>' . PHP_EOL . 'Request dump' . PHP_EOL . '</strong>';
+        $debug_message.= PHP_EOL . '<strong style="' . $strongstyle . '" ' . $togglepre . '>' . PHP_EOL
+            . 'Request dump' . PHP_EOL . '</strong>' . $error_content_wrap_open 
+            . ' for ' . Clementine::$register['request']->INVOCATION_METHOD . ' ' . Clementine::$register['request']->METHOD . ' ' . Clementine::$register['request']->FULLURL . $error_content_wrap_close;
         $debug_message.= '<pre class="clementine_error_handler_error" style="' . $prestyle . '">' . $request_dump . '</pre>';
         $debug_message.= PHP_EOL . '<strong style="' . $strongstyle . '" ' . $togglepre . '>' . PHP_EOL . 'Session dump' . PHP_EOL . '</strong>';
         if (isset($_SESSION)) {
@@ -1978,23 +1998,6 @@ class ClementineRequest
     {
         $this->METHOD = 'GET';
         $this->INVOCATION_METHOD = __INVOCATION_METHOD__;
-        // si appel en CLI, on reconstruit _GET a partir de argv[3]
-        if ($this->INVOCATION_METHOD == 'CLI') {
-            global $argv;
-            if (isset($argv[3])) {
-                $tmp_GET_pairs = explode('&', $argv[3]);
-                foreach ($tmp_GET_pairs as $str_pair) {
-                    $pair = explode('=', $str_pair, 2);
-                    if (isset($pair[1])) {
-                        $_GET[$pair[0]] = $pair[1];
-                    } else {
-                        $_GET[$pair[0]] = '';
-                    }
-                }
-            }
-            // si appel en CLI, on considère qu'on est en local
-            $_SERVER['REMOTE_ADDR'] = '127.0.0.1';
-        }
         if (isset($_SERVER['REQUEST_METHOD']) && isset($this->allowed_request_methods[$_SERVER['REQUEST_METHOD']])) {
             $this->METHOD = $_SERVER['REQUEST_METHOD'];
         }
