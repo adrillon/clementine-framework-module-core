@@ -451,7 +451,7 @@ class Clementine
                     }
                 }
                 if (isset($argv[2])) {
-                    Clementine::$register['request_uri'].= '?' . $argv[3];
+                    Clementine::$register['request_uri'].= '?' . $argv[2];
                 }
             }
         }
