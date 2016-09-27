@@ -1091,7 +1091,7 @@ class Clementine
             }
         }
         // XSS protection
-        $server_http_host = preg_replace('@[^a-z0-9\._-]@i', '', $insecure_server_http_host);
+        $server_http_host = preg_replace('@[^a-z0-9\._-]@i', '', preg_replace('@:.*@', '', $insecure_server_http_host));
         define('__SERVER_HTTP_HOST__', $server_http_host);
         // constante indentifiant le site courant
         define('__CLEMENTINE_APC_PREFIX__', md5(__SERVER_HTTP_HOST__));
