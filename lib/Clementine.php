@@ -37,13 +37,16 @@ class Clementine
      */
     public function __call($name, $args)
     {
+        $debug_backtrace = debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS);
+        $original_class = $debug_backtrace[2]['class'];
+        $original_parent_class = $debug_backtrace[1]['class'];
         $call_parent = 0;
         // get all functions in child class
-        $original_class = get_parent_class($this);
-        $original_parent_class = get_parent_class($original_class);
-        $child_methods = array_diff(get_class_methods($original_class) , get_class_methods($original_parent_class));
+        $original_class_methods = get_class_methods($original_class);
+        $original_parent_class_methods = get_class_methods($original_parent_class);
+        $child_only_methods = array_diff($original_class_methods, $original_parent_class_methods);
         // if the function there is in child class, probably it was called from there
-        if (in_array($name, $child_methods)) {
+        if (in_array($name, $child_only_methods)) {
             // l'appel de parent::method() ne doit pas planter, car sinon il n'y a plus d'independance des modules
             $call_parent = 1;
         }
