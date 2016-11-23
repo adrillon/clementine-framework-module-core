@@ -95,10 +95,6 @@ class Clementine
         $this->hook('before_request', Clementine::$register['request']);
         $this->populateRequest();
         $request = $this->getRequest();
-        $this->hook('before_first_getController', $request);
-        $controller = $this->getController($request->CTRL, array(
-            'no_mail_if_404' => true
-        ));
         $noblock = false;
         $fromcache = null;
         if (!empty(Clementine::$_register['use_apc'])) {
@@ -115,6 +111,10 @@ class Clementine
                 apc_store(__CLEMENTINE_APC_PREFIX__ . '-clementine_core-all_blocks', Clementine::$_register['all_blocks'], 300);
             }
         }
+        $this->hook('before_first_getController', $request);
+        $controller = $this->getController($request->CTRL, array(
+            'no_mail_if_404' => true
+        ));
         if (!$controller) {
             if (!$erreur_404) {
                 if ($request->INVOCATION_METHOD == 'CLI') {
@@ -965,7 +965,7 @@ class Clementine
      */
     public function canGetModel($model, $params = null)
     {
-        return $this->_canGetFactory($model, 'Model', $params = null);
+        return $this->_canGetFactory($model, 'Model', $params);
     }
 
     /**
@@ -979,7 +979,7 @@ class Clementine
      */
     public function canGetHelper($helper, $params = null)
     {
-        return $this->_canGetFactory($helper, 'Helper', $params = null);
+        return $this->_canGetFactory($helper, 'Helper', $params);
     }
 
     /**
@@ -993,7 +993,7 @@ class Clementine
      */
     public function canGetController($ctrl, $params = null)
     {
-        return $this->_canGetFactory($ctrl, 'Controller', $params = null);
+        return $this->_canGetFactory($ctrl, 'Controller', $params);
     }
 
     /**
