@@ -624,11 +624,12 @@ class Clementine
                 } else {
                     // erreur fatale : on a demande a charger un modele qui n'existe pas
                     if (!$testonly) {
-                        if (__DEBUGABLE__ && !$testonly) {
+                        if (__DEBUGABLE__) {
                             $this->getHelper('debug')->errFatale_noSuchModel($type, $element);
                         }
                         die();
                     }
+                    return false;
                 }
             }
         }
