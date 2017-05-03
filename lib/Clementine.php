@@ -1480,7 +1480,7 @@ HTML;
                         // debug sql : cumul du temps passe en *_query
                         if ($type == 'sql') {
                             $debug.= '<tr style="background-color: #DDD; border: solid #CCC 3px; "><td colspan="3" style="padding: 5px; ">';
-                            $debug.= '<strong>Durée totale passé en query (hors fetch) : </strong>';
+                            $debug.= '<strong>' . count(Clementine::$clementine_debug[$type]) . ' queries, durée totale (hors fetch) : </strong>';
                             $debug.= number_format($duree_totale_sql, 3, ',', ' ');
                             $debug.= ' ms </td></tr>';
                         }
@@ -1589,7 +1589,7 @@ HTML;
     }
 
     /**
-     * get_classes_stack : renvoie un tableau de toutes les classes parentes d'une class ou d'un objet
+     * get_classes_stack : renvoie un tableau de toutes les classes parentes d'une classe ou d'un objet
      *
      * @param mixed $class_or_object : classe ou objet
      * @param mixed $type : si spécifié, on peut sauter les classes *{$type}_Parent
@@ -1845,7 +1845,9 @@ HTML;
         $debug_message = $display_error;
         $debug_message.= PHP_EOL . '<strong style="' . $strongstyle . '" ' . $togglepre . '>' . PHP_EOL
             . 'Request dump' . PHP_EOL . '</strong>' . $error_content_wrap_open 
-            . ' for ' . Clementine::$register['request']->INVOCATION_METHOD . ' ' . Clementine::$register['request']->METHOD . ' ' . Clementine::$register['request']->FULLURL . $error_content_wrap_close;
+            . ' for ' . Clementine::$register['request']->INVOCATION_METHOD . ' ' . Clementine::$register['request']->METHOD . ' '
+            . (isset(Clementine::$register['request']->FULLURL) ? Clementine::$register['request']->FULLURL : __WWW_ROOT__ . '/' . Clementine::$register['request_uri'])
+            . $error_content_wrap_close;
         $debug_message.= '<pre class="clementine_error_handler_error" style="' . $prestyle . '">' . $request_dump . '</pre>';
         $debug_message.= PHP_EOL . '<strong style="' . $strongstyle . '" ' . $togglepre . '>' . PHP_EOL . 'Session dump' . PHP_EOL . '</strong>';
         if (isset($_SESSION)) {
