@@ -75,12 +75,12 @@ class Clementine
      * @access public
      * @return void
      */
-    public function run()
+    public function run($phpunit = false)
     {
         Clementine::$_register['mvc_generation_begin'] = microtime(true);
         Clementine::$_register['use_apc'] = ini_get('apc.enabled');
         $erreur_404 = 0;
-        $early_errors = $this->apply_config();
+        $early_errors = $this->apply_config($phpunit);
         // (nécessaire pour map_url() qu'on appelle depuis le hook before_request) : initialise Clementine::$register['request']
         // avant même le premier getRequest(), et supprime les slashes rajoutes par magic_quotes_gpc
         Clementine::$register['request'] = new ClementineRequest();
@@ -92,6 +92,10 @@ class Clementine
             }
         }
         $this->_getRequestURI();
+        if ($phpunit) {
+            $this->populateRequest();
+            return false;
+        }
         $this->hook('before_request', Clementine::$register['request']);
         $this->populateRequest();
         $request = $this->getRequest();
@@ -1055,14 +1059,14 @@ class Clementine
      * @access private
      * @return void
      */
-    public function apply_config()
+    public function apply_config($phpunit = false)
     {
         $early_errors = array();
         // si appel CLI
-        $usage = 'Usage : /usr/bin/php index.php "http://www.site.com" "ctrl[/action]" "[id=1&query=string]"';
-        if (!isset($_SERVER['HTTP_HOST']) && !isset($_SERVER['SERVER_NAME'])) {
+        if ((!isset($_SERVER['HTTP_HOST']) || $_SERVER['HTTP_HOST'] == 'phpunit_fake_http_host') && !isset($_SERVER['SERVER_NAME'])) {
             global $argv;
             if (isset($argv[1]) && (stripos($argv[1], 'http://') === 0 || stripos($argv[1], 'https://') === 0)) {
+                // invocation CLI pour CRON par exemple
                 define('__INVOCATION_METHOD__', 'CLI');
                 $insecure_server_http_host = preg_replace('@^https?://@i', '', $argv[1]);
                 $insecure_server_http_host = preg_replace('@/.*@', '', $insecure_server_http_host);
@@ -1081,8 +1085,39 @@ class Clementine
                 }
                 // si appel en CLI, on considère qu'on est en local
                 $_SERVER['REMOTE_ADDR'] = '127.0.0.1';
+            } elseif ($phpunit) {
+                for ($i = 1; (!empty($argv[1]) && substr($argv[1], 0, 2) == '--'); ++$i) {
+                    if ($i > 100) {
+                        echo 'More thant 100 PHPUnit options, no way.';
+                        die();
+                    }
+                    array_splice($argv, 1, 1);
+                }
+                if (!(isset($argv[2]) && (stripos($argv[2], 'http://') === 0 || stripos($argv[2], 'https://') === 0))) {
+                    echo 'Usage: phpunit <someTest.php|path/to/tests> "http://www.site.com" ["id=1&query=string"]';
+                    die();
+                }
+                // invocation CLI pour phpunit : phpunit fichierTest.php "https://www.site.com"
+                define('__INVOCATION_METHOD__', 'CLI');
+                $insecure_server_http_host = preg_replace('@^https?://@i', '', $argv[2]);
+                $insecure_server_http_host = preg_replace('@/.*@', '', $insecure_server_http_host);
+                // si appel en CLI, on reconstruit _GET a partir de argv[3]
+                global $argv;
+                if (isset($argv[3])) {
+                    $tmp_GET_pairs = explode('&', $argv[3]);
+                    foreach ($tmp_GET_pairs as $str_pair) {
+                        $pair = explode('=', $str_pair, 2);
+                        if (isset($pair[1])) {
+                            $_GET[$pair[0]] = $pair[1];
+                        } else {
+                            $_GET[$pair[0]] = '';
+                        }
+                    }
+                }
+                // si appel en CLI, on considère qu'on est en local
+                $_SERVER['REMOTE_ADDR'] = '127.0.0.1';
             } else {
-                echo $usage;
+                echo 'Usage: php index.php "http://www.site.com" "ctrl[/action]" ["id=1&query=string"]';
                 die();
             }
         } else {
@@ -1404,7 +1439,7 @@ class Clementine
                 'helper' => 'Helpers chargés sur cette page',
                 'heritage' => '<span style="color: red">Sanity-check sur les héritages : pour éviter les conflits entre surcharges</span>',
                 'overrides' => 'Modules chargés (et poids)',
-                'sql' => 'Log des requêtes SQL exécutées',
+                'sql' => 'Requêtes SQL',
             );
             $debug = <<<HTML
         <div id="Clementine_debug_div" style="background: rgba(128,128,128,0.1); box-shadow: 3px 3px 3px rgba(128,128,128,0.5); position: absolute; max-width: 100%; right: 0; z-index: 9999; font-family: courier; font-size: 14px; padding: 0.5em; border-radius: 5px; overflow: hidden; " >
@@ -1453,26 +1488,64 @@ HTML;
                         if ($type == 'block') {
                             Clementine::$clementine_debug[$type] = array_reverse(Clementine::$clementine_debug[$type]);
                         }
-                        // debug sql : cumul du temps passe en *_query
-                        $duree_totale_sql = 0;
-                        foreach (Clementine::$clementine_debug[$type] as $msg) {
+                        // beautify sql debug, highlight identical queries and loops
+                        foreach (Clementine::$clementine_debug[$type] as $msg_key => $msg) {
                             // debug sql : cumul du temps passe en *_query et conversion de microsecondes a millisecondes
                             if ($type == 'sql') {
-                                $msg['duree']*= 1000;
-                                $duree_totale_sql+= $msg['duree'];
-                                $msg['duree'] = number_format($msg['duree'], 3, ',', ' ') . '&nbsp;ms';
+                                $sql_backtrace_hashes = array();
+                                foreach ($msg as $num => $query_infos) {
+                                    $sql_backtrace_hash = md5($query_infos['query'] . $query_infos['file']);
+                                    if (empty($sql_backtrace_hashes[$sql_backtrace_hash])) {
+                                        $sql_backtrace_hashes[$sql_backtrace_hash] = 0;
+                                    }
+                                    $sql_backtrace_hashes[$sql_backtrace_hash] += 1;
+                                    $step = $sql_backtrace_hashes[$sql_backtrace_hash];
+                                    $query_infos['duree']*= 1000;
+                                    $duree_totale_sql+= $query_infos['duree'];
+                                    $nb_total_queries+= 1;
+                                    $nb_times = count($msg);
+                                    $nb_backtrace_hashes = count($sql_backtrace_hashes);
+                                    $query_infos_file_rewriten = '<strong>' . number_format($query_infos['duree'], 2, ',', ' ') . '</strong>&nbsp;ms'
+                                        . ($nb_times > 1 ? ' (' . ($step > 1 ? 'step ' . $step . '<span style="color: red; "> in a loop of </span>' : 'from ')
+                                        . $nb_times . ' identical queries, ' . 'see backtrace #' . $nb_backtrace_hashes . ' below)' : ' (unique)')
+                                        . '<br /><pre>' . $query_infos['file'] . '</pre>';
+                                    Clementine::$clementine_debug[$type][$msg_key][$num]['file'] = $query_infos_file_rewriten;
+                                    unset(Clementine::$clementine_debug[$type][$msg_key][$num]['duree']);
+                                }
                             }
-                            $debug.= <<<HTML
-                            <tr style="background-color: #DDD; border-top: solid #CCC 3px; "><td style="padding: 5px; ">
+                        }
+                        // debug sql : cumul du temps passe en *_query
+                        $duree_totale_sql = 0;
+                        $nb_total_queries = 0;
+                        foreach (Clementine::$clementine_debug[$type] as $msg_key => $msg) {
+                            // debug sql : cumul du temps passe en *_query et conversion de microsecondes a millisecondes
+                            if ($type == 'sql') {
+                                foreach ($msg as $query_infos) {
+                                    $debug.= <<<HTML
+                                    <tr style="background-color: #DDD; border-top: solid #CCC 3px; "><td style="padding: 5px; vertical-align: top; ">
 HTML;
-                            if (is_array($msg)) {
-                                $debug.= implode('</td><td style="padding: 5px; vertical-align: top; ">', $msg);
+                                    if (is_array($query_infos)) {
+                                        $debug.= implode('</td><td style="padding: 5px; vertical-align: top; ">', $query_infos);
+                                    } else {
+                                        $debug.= $query_infos;
+                                    }
+                                    $debug.= <<<HTML
+                                    </td></tr>
+HTML;
+                                }
                             } else {
-                                $debug.= $msg;
-                            }
-                            $debug.= <<<HTML
-</td></tr>
+                                $debug.= <<<HTML
+                                <tr style="background-color: #DDD; border-top: solid #CCC 3px; "><td style="padding: 5px; ">
 HTML;
+                                if (is_array($msg)) {
+                                    $debug.= implode('</td><td style="padding: 5px; vertical-align: top; ">', $msg);
+                                } else {
+                                    $debug.= $msg;
+                                }
+                                $debug.= <<<HTML
+                                </td></tr>
+HTML;
+                            }
                         }
                         $debug.= <<<HTML
                         </table>
@@ -1480,9 +1553,9 @@ HTML;
                         // debug sql : cumul du temps passe en *_query
                         if ($type == 'sql') {
                             $debug.= '<tr style="background-color: #DDD; border: solid #CCC 3px; "><td colspan="3" style="padding: 5px; ">';
-                            $debug.= '<strong>' . count(Clementine::$clementine_debug[$type]) . ' queries, durée totale (hors fetch) : </strong>';
-                            $debug.= number_format($duree_totale_sql, 3, ',', ' ');
-                            $debug.= ' ms </td></tr>';
+                            $debug.= '<strong>' . $nb_total_queries . '</strong> requêtes : <strong>';
+                            $debug.= number_format($duree_totale_sql, 2, ',', ' ');
+                            $debug.= '</strong> ms </td></tr>';
                         }
                     }
                     $debug.= <<<HTML
@@ -1840,13 +1913,55 @@ HTML;
             $display_error.= '</pre>';
         }
         $debug_message = $display_error;
-        $request_dump = Clementine::dump(Clementine::$register['request'], true);
-        $debug_backtrace = Clementine::dump(debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS) , true);
+        $request = new ClementineRequest();
+        if (!empty(Clementine::$register['request'])) {
+            $request = Clementine::$register['request'];
+        }
+        $request_dump = Clementine::dump($request, true);
+        $backtrace = debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS);
+        $backtrace_oneline = '';
+        foreach ($backtrace as $trace) {
+            $trace_msg = '';
+            if (!empty($trace['file'])) {
+                $trace_msg .= str_replace(__FILES_ROOT__ . '/', '', $trace['file']);
+            }
+            if (!empty($trace['line'])) {
+                $trace_msg .= ':' . $trace['line'];
+            }
+            if (!empty($trace['class']) || !empty($trace['type']) || !empty($trace['function'])) {
+                $trace_msg .= ' <small style="color: gray; text-align: right; ">';
+                if (!empty($trace['class'])) {
+                    $trace_msg .= $trace['class'];
+                }
+                if (!empty($trace['type'])) {
+                    $trace_msg .= $trace['type'];
+                }
+                if (!empty($trace['function'])) {
+                    $trace_msg .= $trace['function'];
+                }
+                $trace_msg .= '</small>';
+            }
+            $trace_msg .= '<br />';
+            if (!empty($trace['class']) && !empty($trace['function']) && $trace['class'] == 'Clementine' && $trace['function'] == '_require') {
+                $trace_msg = '';
+            }
+            if (empty($trace['class']) && !empty($trace['function']) && $trace['function'] == 'require') {
+                $trace_msg = '';
+            }
+            $backtrace_oneline.= $trace_msg;
+        }
+        $url = 'unknown_url';
+        if (isset($request->FULLURL)) {
+            $url = $request->FULLURL;
+        } elseif (isset(Clementine::$register['request_uri'])) {
+            $url = __WWW_ROOT__ . '/' . Clementine::$register['request_uri'];
+        }
+        $debug_backtrace = $backtrace_oneline;
         $debug_message = $display_error;
         $debug_message.= PHP_EOL . '<strong style="' . $strongstyle . '" ' . $togglepre . '>' . PHP_EOL
             . 'Request dump' . PHP_EOL . '</strong>' . $error_content_wrap_open 
-            . ' for ' . Clementine::$register['request']->INVOCATION_METHOD . ' ' . Clementine::$register['request']->METHOD . ' '
-            . (isset(Clementine::$register['request']->FULLURL) ? Clementine::$register['request']->FULLURL : __WWW_ROOT__ . '/' . Clementine::$register['request_uri'])
+            . ' for ' . $request->INVOCATION_METHOD . ' ' . $request->METHOD . ' '
+            . $url
             . $error_content_wrap_close;
         $debug_message.= '<pre class="clementine_error_handler_error" style="' . $prestyle . '">' . $request_dump . '</pre>';
         $debug_message.= PHP_EOL . '<strong style="' . $strongstyle . '" ' . $togglepre . '>' . PHP_EOL . 'Session dump' . PHP_EOL . '</strong>';
@@ -1856,6 +1971,10 @@ HTML;
         }
         $debug_message.= PHP_EOL . '<strong style="' . $strongstyle . '" ' . $togglepre . '>' . PHP_EOL . 'Debug_backtrace' . PHP_EOL . '</strong>';
         $debug_message.= '<pre class="clementine_error_handler_error" style="' . $prestyle . '">' . $debug_backtrace . '</pre>';
+        // run request as as a curl command
+        $curl_cmd = $request->getAsCurl();
+        $debug_message.= PHP_EOL . '<strong style="' . $strongstyle . '" ' . $togglepre . '>' . PHP_EOL . 'Curl command' . PHP_EOL . '</strong>';
+        $debug_message.= '<pre class="clementine_error_handler_error" style="' . $prestyle . '">' . $curl_cmd . '</pre>';
         $debug_message.= '</div>';
         if (__DEBUGABLE__ && Clementine::$config['clementine_debug']['display_errors']) {
             // si appel non CLI
@@ -2339,4 +2458,35 @@ class ClementineRequest
             }
         }
     }
+
+    /**
+     * getAsCurl : get curl command to run request
+     *
+     * @access public
+     * @return string
+     */
+    public function getAsCurl()
+    {
+        $url = 'unknown_url';
+        if (isset($this->FULLURL)) {
+            $url = escapeshellarg($this->FULLURL);
+        }
+        $curl_cmd = "curl -s -L " . $url;
+        if (!empty($this->SERVER['HTTP_HOST'])) {
+            $curl_cmd .= " -H " . escapeshellarg('Host: ' . $this->SERVER['HTTP_HOST']);
+        }
+        if (!empty($this->SERVER['CONTENT_TYPE'])) {
+            $curl_cmd .= " -H " . escapeshellarg('Content-Type: ' . $this->SERVER['CONTENT_TYPE']);
+        }
+        if (!empty($this->COOKIE)) {
+            // no need to write cookie jar on disk: cf. https://stackoverflow.com/a/1490482
+            $curl_cmd .= " --cookie-jar '/dev/null'";
+            $curl_cmd .= " --cookie " . escapeshellarg($this->SERVER['HTTP_COOKIE']);
+        }
+        if ($this->METHOD == 'POST') {
+            $curl_cmd .= " --data " . escapeshellarg(http_build_query($this->POST));
+        }
+        return $curl_cmd;
+    }
+
 }
