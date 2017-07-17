@@ -1488,7 +1488,9 @@ HTML;
                         if ($type == 'block') {
                             Clementine::$clementine_debug[$type] = array_reverse(Clementine::$clementine_debug[$type]);
                         }
-                        // beautify sql debug, highlight identical queries and loops
+                        // debug sql : cumul du temps passe en *_query, highlight identical queries and loops
+                        $duree_totale_sql = 0;
+                        $nb_total_queries = 0;
                         foreach (Clementine::$clementine_debug[$type] as $msg_key => $msg) {
                             // debug sql : cumul du temps passe en *_query et conversion de microsecondes a millisecondes
                             if ($type == 'sql') {
@@ -1514,9 +1516,6 @@ HTML;
                                 }
                             }
                         }
-                        // debug sql : cumul du temps passe en *_query
-                        $duree_totale_sql = 0;
-                        $nb_total_queries = 0;
                         foreach (Clementine::$clementine_debug[$type] as $msg_key => $msg) {
                             // debug sql : cumul du temps passe en *_query et conversion de microsecondes a millisecondes
                             if ($type == 'sql') {
