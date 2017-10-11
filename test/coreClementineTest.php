@@ -1,20 +1,10 @@
 <?php
-$_SERVER['HTTP_HOST'] = 'phpunit_fake_http_host';
-require_once (__DIR__ . '/../../core/lib/Clementine.php');
-// fix for code coverage: http://www.voidcn.com/blog/Tom_Green/article/p-6004162.html
-$php_token_autoload_file = '/usr/share/php/PHP/Token/Stream/Autoload.php';
-if (file_exists($php_token_autoload_file)) {
-    require_once($php_token_autoload_file);
-}
-global $Clementine;
-$Clementine = new Clementine();
-$Clementine->run(true);
-
-ini_set('log_errors', 'off');
-ini_set('display_errors', 'on');
-
-class ClementineTest extends PHPUnit_Framework_TestCase
+class coreClementineTest extends coreClementineTest_Parent
 {
+    public function testTestsCanRun()
+    {
+        $this->assertTrue(true);
+    }
 
     public function testgetModuleInfos()
     {
@@ -40,7 +30,6 @@ class ClementineTest extends PHPUnit_Framework_TestCase
         $model = $Clementine->getModel('traduction');
         $this->assertTrue('TraductionModel' == get_class($model));
     }
-
 
     public function testgetHelper()
     {

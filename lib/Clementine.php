@@ -72,6 +72,7 @@ class Clementine
     /**
      * run : lance l'application construite sur l'architecture MVC
      *
+     * @param boolean $phpunit Handle command as if it was run by phpunit
      * @access public
      * @return void
      */
@@ -80,6 +81,10 @@ class Clementine
         Clementine::$_register['mvc_generation_begin'] = microtime(true);
         Clementine::$_register['use_apc'] = ini_get('apc.enabled');
         $erreur_404 = 0;
+        $php_self = strtolower(preg_replace('/-.*/', '', preg_replace('/.*\//', '', $_SERVER['PHP_SELF'])));
+        if ($php_self == 'phpunit') {
+            $phpunit = true;
+        }
         $early_errors = $this->apply_config($phpunit);
         // (nécessaire pour map_url() qu'on appelle depuis le hook before_request) : initialise Clementine::$register['request']
         // avant même le premier getRequest(), et supprime les slashes rajoutes par magic_quotes_gpc
@@ -91,11 +96,7 @@ class Clementine
                 Clementine::$register['clementine_debug_helper']->trigger_error($early_error[0], $early_error[1], $early_error[2]);
             }
         }
-        $this->_getRequestURI();
-        if ($phpunit) {
-            $this->populateRequest();
-            return false;
-        }
+        $this->_getRequestURI($phpunit);
         $this->hook('before_request', Clementine::$register['request']);
         $this->populateRequest();
         $request = $this->getRequest();
@@ -114,6 +115,9 @@ class Clementine
             if (!empty(Clementine::$_register['use_apc'])) {
                 apc_store(__CLEMENTINE_APC_PREFIX__ . '-clementine_core-all_blocks', Clementine::$_register['all_blocks'], 300);
             }
+        }
+        if ($phpunit) {
+            return false;
         }
         $this->hook('before_first_getController', $request);
         $controller = $this->getController($request->CTRL, array(
@@ -337,6 +341,17 @@ class Clementine
     }
 
     /**
+     * setRequest : stocke un l'objet $request dans le registre
+     *
+     * @access public
+     * @return void
+     */
+    public function setRequest(ClementineRequest $request)
+    {
+        Clementine::$register['request'] = $request;
+    }
+
+    /**
      * populateRequest : decompose la requete en : langue, controleur, action
      *
      * @access private
@@ -433,22 +448,69 @@ class Clementine
     }
 
     /**
-     * _getRequestURI : reconstruit si nécessaire le contenu de $_SERVER['REQUEST_URI] et stocke dans Clementine::$register['request_uri']
+     * _getCliArgs : decompose la ligne de commande en arguments : cliopts get php/phpunit args, clemopts get app args
      *
+     * @param boolean $phpunit Handle command as if it was run by phpunit
      * @access private
      * @return void
      */
-    private function _getRequestURI()
+    private function _getCliArgs($phpunit = false)
+    {
+        global $argv;
+        $args = $argv;
+        $phpunit_cli = '';
+        if ($phpunit) {
+            $phpunit_cli = $args[0];
+            unset($args[0]);
+        }
+        $args = array_values($args);
+        $cliopts = array();
+        $clemopts = array();
+        $nb_real_args = 0;
+        foreach ($args as $index => $arg) {
+            if (strpos($arg, '-') === 0) {
+                if ($nb_real_args < 1) {
+                    // not using array keys here as some tools may use the same option multiple times (eg. -v -v)
+                    $cliopts[] = $arg;
+                } else {
+                    $clemopts[$arg] = '';
+                }
+                unset($args[$index]);
+            } else {
+                ++$nb_real_args;
+            }
+        }
+        if (count($cliopts) > 100) {
+            echo 'More than 100 options, no way.';
+            die();
+        }
+        $args = array_values($args);
+        return array(
+            'args' => $args,
+            'cliopts' => $cliopts,
+            'clemopts' => $clemopts,
+        );
+    }
+
+    /**
+     * _getRequestURI : reconstruit si nécessaire le contenu de $_SERVER['REQUEST_URI] et stocke dans Clementine::$register['request_uri']
+     *
+     * @param boolean $phpunit Handle command as if it was run by phpunit
+     * @access private
+     * @return void
+     */
+    private function _getRequestURI($phpunit = false)
     {
         if (!(isset(Clementine::$register['request_uri']) && Clementine::$register['request_uri'])) {
             // selon appel HTTP ou CLI
             if (__INVOCATION_METHOD__ == 'URL') {
                 Clementine::$register['request_uri'] = substr($_SERVER['REQUEST_URI'], (strlen(__BASE_URL__) + 1));
             } else {
-                global $argv;
+                $cliargs = $this->_getCliArgs($phpunit);
+                $args = $cliargs['args'];
                 Clementine::$register['request_uri'] = '';
-                if (isset($argv[2])) {
-                    $ctrl_act = explode('/', $argv[2], 2);
+                if (isset($args[2])) {
+                    $ctrl_act = explode('/', $args[2], 2);
                     $ctrl = $ctrl_act[0];
                     Clementine::$register['request_uri'] = $ctrl;
                     $action = '';
@@ -457,8 +519,8 @@ class Clementine
                         Clementine::$register['request_uri'].= '/' . $action;
                     }
                 }
-                if (isset($argv[2])) {
-                    Clementine::$register['request_uri'].= '?' . $argv[2];
+                if (isset($args[3])) {
+                    Clementine::$register['request_uri'].= '?' . $args[3];
                 }
             }
         }
@@ -526,11 +588,15 @@ class Clementine
                             }
                             $code_to_eval = 'abstract class ' . $current_class . '_Parent extends ' . constant($adopter) . ' {}';
                         } else {
+                            $base_class = 'Clementine';
+                            if ($type == 'Test') {
+                                $base_class = 'ClementineTestCase';
+                            }
                             // getController can only by called from another Controller or a Hook
-                            if ($type == 'Controller' || ($type == 'Helper' && $element == 'Hook')) {
-                                $code_to_eval = 'abstract class ' . $current_class . '_Parent extends Clementine {}';
+                            if ($type == 'Controller' || $type == 'Test' || ($type == 'Helper' && $element == 'Hook')) {
+                                $code_to_eval = 'abstract class ' . $current_class . '_Parent extends ' . $base_class . ' {}';
                             } else {
-                                $code_to_eval = 'abstract class ' . $current_class . '_Parent extends Clementine {
+                                $code_to_eval = 'abstract class ' . $current_class . '_Parent extends ' . $base_class . ' {
                                     public function getController($ctrl, $params = null) {
                                         $this->getHelper("debug")->getControllerFromModel();
                                     }
@@ -665,6 +731,9 @@ class Clementine
         case 'Helper':
             return 'helper';
             break;
+        case 'Test':
+            return 'test';
+            break;
         case 'Controller':
             return 'ctrl';
             break;
@@ -695,6 +764,18 @@ class Clementine
     public function getHelper($helper, $params = null)
     {
         return $this->_factory($helper, 'Helper', 0, $params);
+    }
+
+    /**
+     * getTest : charge la classe de tests le plus au sommet de la pile de surcharge
+     *
+     * @param mixed $test
+     * @access public
+     * @return void
+     */
+    public function getTest($test, $params = null)
+    {
+        return $this->_factory($test, 'Test', 0, $params);
     }
 
     /**
@@ -944,7 +1025,7 @@ class Clementine
      */
     private function _canGetFactory($element, $type, $params = null)
     {
-        if ($type != 'Model' && $type != 'Helper' && $type != 'Controller') {
+        if ($type != 'Model' && $type != 'Helper' && $type != 'Controller' && $type != 'Test') {
             return false;
         }
         if ($type == 'Controller' && Clementine::$_register['_forbid_getcontroller']) {
@@ -985,6 +1066,20 @@ class Clementine
     public function canGetHelper($helper, $params = null)
     {
         return $this->_canGetFactory($helper, 'Helper', $params);
+    }
+
+    /**
+     * canGetTest : renvoie vrai si la classe de tests est chargeable
+     *              cette fonction chargera la classe demandee si elle n'est pas deja chargee
+     *
+     * @param mixed $test
+     * @param mixed $params
+     * @access public
+     * @return void
+     */
+    public function canGetTest($test, $params = null)
+    {
+        return $this->_canGetFactory($test, 'Test', $params);
     }
 
     /**
@@ -1031,7 +1126,8 @@ class Clementine
         $types = array(
             'Controller',
             'Model',
-            'Helper'
+            'Helper',
+            'Test'
         );
         foreach ($types as $type) {
             if (strpos($class, $type) !== false) {
@@ -1062,18 +1158,44 @@ class Clementine
     public function apply_config($phpunit = false)
     {
         $early_errors = array();
+        $runtests = 0;
+        define('__FILES_ROOT__', realpath(dirname(__FILE__) . '/../../../../'));
         // si appel CLI
-        if ((!isset($_SERVER['HTTP_HOST']) || $_SERVER['HTTP_HOST'] == 'phpunit_fake_http_host') && !isset($_SERVER['SERVER_NAME'])) {
-            global $argv;
-            if (isset($argv[1]) && (stripos($argv[1], 'http://') === 0 || stripos($argv[1], 'https://') === 0)) {
-                // invocation CLI pour CRON par exemple
+        if (PHP_SAPI == 'cli' || (!isset($_SERVER['HTTP_HOST']) || $_SERVER['HTTP_HOST'] == 'phpunit_fake_http_host')) {
+            $doc_usage = 'Usage: php index.php "http://www.site.com" "ctrl[/action]" ["id=1&query=string"] [--test-options]' . PHP_EOL;
+            $doc_usage.= PHP_EOL;
+            $doc_usage.= 'Run all tests:' . PHP_EOL;
+            $doc_usage.= '    phpunit [--phpunit-options] index.php "http://www.site.com" ["id=1&query=string"] [--test-options]' . PHP_EOL;
+            $doc_usage.= 'Run one test:' . PHP_EOL;
+            $doc_usage.= '    phpunit [--phpunit-options] tmp/tests/someTest.php "http://www.site.com" ["id=1&query=string"] [--test-options]' . PHP_EOL;
+            $doc_usage.= PHP_EOL;
+            $doc_usage.= 'Test options:' . PHP_EOL;
+            $doc_usage.= '    --init-testdata' . PHP_EOL;
+            $doc_usage.= '        copy production db to test db' . PHP_EOL;
+            $doc_usage.= '                    Database tests require [clementine_dbtests] database to be up and running' . PHP_EOL;
+            $doc_usage.= '                    Using --init-testdata will create [clementine_dbtests] with data from [clementine_db]' . PHP_EOL;
+            $doc_usage.= '                    Without --init-testdata, tests will use existing [clementine_dbtests] database anyway' . PHP_EOL;
+            $doc_usage.= '    --always-init-testdata' . PHP_EOL;
+            $doc_usage.= '        Recreate [clementine_dbtests] everytime setUpTestDB is run (eg. in phpunit\'s setUpBeforeClass or setUp functions)' . PHP_EOL;
+            $cliargs = $this->_getCliArgs($phpunit);
+            $args = $cliargs['args'];
+            $cliopts = $cliargs['cliopts'];
+            $clemopts = $cliargs['clemopts'];
+            Clementine::$register['clementine_cli_opts'] = $clemopts;
+            $args = array_values($args);
+            if ($phpunit) {
+                $runtests = 1;
+                if (!(isset($args[1]) && (stripos($args[1], 'http://') === 0 || stripos($args[1], 'https://') === 0))) {
+                    echo $doc_usage;
+                    die();
+                }
+                // invocation CLI pour phpunit : phpunit fichierTest.php "https://www.site.com"
                 define('__INVOCATION_METHOD__', 'CLI');
-                $insecure_server_http_host = preg_replace('@^https?://@i', '', $argv[1]);
+                $insecure_server_http_host = preg_replace('@^https?://@i', '', $args[1]);
                 $insecure_server_http_host = preg_replace('@/.*@', '', $insecure_server_http_host);
-                // si appel en CLI, on reconstruit _GET a partir de argv[3]
-                global $argv;
-                if (isset($argv[3])) {
-                    $tmp_GET_pairs = explode('&', $argv[3]);
+                // si appel en CLI, on reconstruit _GET a partir de args[2]
+                if (isset($args[2])) {
+                    $tmp_GET_pairs = explode('&', $args[2]);
                     foreach ($tmp_GET_pairs as $str_pair) {
                         $pair = explode('=', $str_pair, 2);
                         if (isset($pair[1])) {
@@ -1085,26 +1207,15 @@ class Clementine
                 }
                 // si appel en CLI, on considère qu'on est en local
                 $_SERVER['REMOTE_ADDR'] = '127.0.0.1';
-            } elseif ($phpunit) {
-                for ($i = 1; (!empty($argv[1]) && substr($argv[1], 0, 2) == '--'); ++$i) {
-                    if ($i > 100) {
-                        echo 'More thant 100 PHPUnit options, no way.';
-                        die();
-                    }
-                    array_splice($argv, 1, 1);
-                }
-                if (!(isset($argv[2]) && (stripos($argv[2], 'http://') === 0 || stripos($argv[2], 'https://') === 0))) {
-                    echo 'Usage: phpunit <someTest.php|path/to/tests> "http://www.site.com" ["id=1&query=string"]';
-                    die();
-                }
-                // invocation CLI pour phpunit : phpunit fichierTest.php "https://www.site.com"
+            } else if (isset($args[1]) && (stripos($args[1], 'http://') === 0 || stripos($args[1], 'https://') === 0)) {
+                // invocation CLI pour CRON par exemple
                 define('__INVOCATION_METHOD__', 'CLI');
-                $insecure_server_http_host = preg_replace('@^https?://@i', '', $argv[2]);
+                $insecure_server_http_host = preg_replace('@^https?://@i', '', $args[1]);
                 $insecure_server_http_host = preg_replace('@/.*@', '', $insecure_server_http_host);
-                // si appel en CLI, on reconstruit _GET a partir de argv[3]
-                global $argv;
-                if (isset($argv[3])) {
-                    $tmp_GET_pairs = explode('&', $argv[3]);
+                // si appel en CLI, on reconstruit _GET a partir de args[3]
+                global $args;
+                if (isset($args[2])) {
+                    $tmp_GET_pairs = explode('&', $args[2]);
                     foreach ($tmp_GET_pairs as $str_pair) {
                         $pair = explode('=', $str_pair, 2);
                         if (isset($pair[1])) {
@@ -1117,7 +1228,7 @@ class Clementine
                 // si appel en CLI, on considère qu'on est en local
                 $_SERVER['REMOTE_ADDR'] = '127.0.0.1';
             } else {
-                echo 'Usage: php index.php "http://www.site.com" "ctrl[/action]" ["id=1&query=string"]';
+                echo $doc_usage;
                 die();
             }
         } else {
@@ -1163,15 +1274,12 @@ class Clementine
                 $base_url = str_replace('\\', '/', $base_url);
             }
             define('__BASE_URL__', $base_url);
-            $files_root = preg_replace('@//*@', '/', $_SERVER['DOCUMENT_ROOT'] . __BASE_URL__);
-            if ($files_root != '/') {
-                $files_root = preg_replace('@/$@', '', $files_root);
-            }
-            define('__FILES_ROOT__', $files_root);
         } else {
-            $base_url = preg_replace('@^https?://[^/]+@i', '', $argv[1]);
+            $base_url = preg_replace('@^https?://[^/]+@i', '', $args[1]);
+            if ($phpunit) {
+                $base_url = '';
+            }
             define('__BASE_URL__', $base_url);
-            define('__FILES_ROOT__', realpath(dirname(__FILE__) . '/../../../../'));
         }
         $protocol = 'http://';
         if (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS']) {
@@ -1200,7 +1308,8 @@ class Clementine
             'model',
             'view',
             'controller',
-            'helper'
+            'helper',
+            'test'
         );
         foreach ($adopters as $adopter) {
             if (isset($config['clementine_inherit_' . $adopter]) && is_array($config['clementine_inherit_' . $adopter])) {
@@ -1307,6 +1416,10 @@ class Clementine
             ini_set('session.gc_probability', Clementine::$config['clementine_global']['gc_probability']);
         }
         ini_set('session.gc_maxlifetime', Clementine::$config['clementine_global']['gc_maxlifetime']);
+        ini_set('session.cookie_httponly', Clementine::$config['clementine_global']['session_httponly']);
+        if (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS']) {
+            ini_set('session.cookie_secure', Clementine::$config['clementine_global']['session_secure']);
+        }
         // timezone
         ini_set('date.timezone', Clementine::$config['clementine_global']['date_timezone']);
         // locale de PHP
@@ -1347,7 +1460,117 @@ class Clementine
             Clementine::$clementine_debug['overrides'][] = $message;
         }
         Clementine::$config = $config;
+        if ($runtests) {
+            if (!empty($args[0]) && realpath($args[0]) == __FILES_ROOT__ . '/index.php') {
+                $this->_writeTmpTests();
+            }
+            if (!empty($args[0]) && realpath($args[0]) == __FILES_ROOT__ . '/index.php') {
+                $init_testdata = '';
+                if (isset($clemopts['--init-testdata'])) {
+                    $init_testdata = '--init-testdata';
+                    if (!isset($clemopts['--always-init-testdata'])) {
+                        unset($clemopts['--init-testdata']);
+                    }
+                }
+                // run phpunit
+                $escaped_cliopts = "";
+                foreach ($cliopts as $opt) {
+                    $escaped_cliopts .= escapeshellarg($opt) . " ";
+                }
+                $escaped_clemopts = "";
+                foreach ($clemopts as $opt => $val) {
+                    $escaped_clemopts .= escapeshellarg($opt) . " ";
+                }
+                $req = '';
+                if (isset($args[2])) {
+                    $req = escapeshellarg($args[2]);
+                }
+                $qsa = '';
+                if (isset($args[3])) {
+                    $qsa = escapeshellarg($args[3]);
+                }
+                global $argv;
+                $color = "\033" . Clementine::$config['clementine_shell_colors']['info'];
+                $normal = "\033" . Clementine::$config['clementine_shell_colors']['normal'];
+                $phpunit_cli = $argv[0];
+                $exclude = '';
+                $passthru_params = ' -print0 | xargs -I\'{}\' -n 1 -0 --verbose ' . escapeshellarg($phpunit_cli) . ' ' . $escaped_cliopts . ' {} ' . escapeshellarg($args[1]) . ' ' . $escaped_clemopts . ' ' . $init_testdata . ' ' . $req . ' ' . $qsa . ' ';
+                if ($init_testdata) {
+                    passthru('find ' . escapeshellarg(__FILES_ROOT__ . '/tmp/tests') . ' -name "dbTest.php" ' . $exclude . ' ' . $passthru_params);
+                    $exclude = ' -not -name "dbTest.php" ';
+                }
+                passthru('find ' . escapeshellarg(__FILES_ROOT__ . '/tmp/tests') . ' -name "*Test.php" ' . $exclude . ' ' . $passthru_params);
+                die();
+            }
+        }
         return $early_errors;
+    }
+
+    private function _getTestClasses()
+    {
+        $testClasses = array();
+        $appDir = __FILES_ROOT__ . '/app';
+        $pattern = $appDir . '/{' . __CLEMENTINE_HOST__ . '/,}*/*/test/*Test.php';
+        $testDirs = glob($pattern, GLOB_BRACE|GLOB_NOSORT);
+        foreach ($testDirs as $testDir) {
+            $testName = preg_replace('/.*\//', '', $testDir);
+            $testName = preg_replace('/Test.php$/', '', $testName);
+            $testName = strtolower(preg_replace('/^[a-z0-9]*/', '', $testName));
+            if (strlen($testName)) {
+                $testClasses[$testName] = '';
+            }
+        }
+        ksort($testClasses);
+        $testClasses = array_keys($testClasses);
+        return $testClasses;
+    }
+
+    /**
+    * Recursively delete a directory
+    *
+    * @param string $dir Directory name
+    * @param boolean $delete_root_too Delete specified top-level directory as well
+    */
+    private function _unlink_recursive ($dir, $delete_root_too = true)
+    {
+        if (!$dh = @opendir($dir)) {
+            return false;
+        }
+        while (false !== ($obj = readdir($dh))) {
+            if ($obj == '.' || $obj == '..') {
+                continue;
+            }
+            if (!@unlink($dir . '/' . $obj)) {
+                $this->_unlink_recursive($dir . '/' . $obj, true);
+            }
+        }
+        closedir($dh);
+        if ($delete_root_too) {
+            @rmdir($dir);
+        }
+        return true;
+    }
+
+    private function _writeTmpTests()
+    {
+        $testClasses = $this->_getTestClasses();
+        $testsDir = __FILES_ROOT__ . '/tmp/tests';
+        if (is_dir($testsDir)) {
+            $this->_unlink_recursive($testsDir);
+        }
+        if (!is_dir($testsDir)) {
+            mkdir($testsDir);
+        }
+        foreach ($testClasses as $testClass) {
+            $testFile = $testsDir . '/' . $testClass . 'Test.php';
+            $testFileContent = '<?php
+require_once (dirname(__FILE__) . "/../../app/share/core/lib/ClementineTestCase.php");
+global $Clementine;
+$test = $Clementine->getTest("' . $testClass . '");
+final class phpunit' . ucfirst($testClass) . 'Test extends ' . ucfirst($testClass) . 'Test {}
+';
+        file_put_contents($testFile, $testFileContent);
+        }
     }
 
     /**
@@ -1437,6 +1660,7 @@ class Clementine
                 'model' => 'Modèles chargés sur cette page',
                 'block' => 'Blocks chargés sur cette page',
                 'helper' => 'Helpers chargés sur cette page',
+                'test' => 'Tests unitaires chargés sur cette page',
                 'heritage' => '<span style="color: red">Sanity-check sur les héritages : pour éviter les conflits entre surcharges</span>',
                 'overrides' => 'Modules chargés (et poids)',
                 'sql' => 'Requêtes SQL',
@@ -2477,7 +2701,7 @@ class ClementineRequest
         if (!empty($this->SERVER['CONTENT_TYPE'])) {
             $curl_cmd .= " -H " . escapeshellarg('Content-Type: ' . $this->SERVER['CONTENT_TYPE']);
         }
-        if (!empty($this->COOKIE)) {
+        if (!empty($this->COOKIE) && !empty($this->SERVER['HTTP_COOKIE'])) {
             // no need to write cookie jar on disk: cf. https://stackoverflow.com/a/1490482
             $curl_cmd .= " --cookie-jar '/dev/null'";
             $curl_cmd .= " --cookie " . escapeshellarg($this->SERVER['HTTP_COOKIE']);
