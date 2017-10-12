@@ -1164,17 +1164,15 @@ class Clementine
         if (PHP_SAPI == 'cli' || (!isset($_SERVER['HTTP_HOST']) || $_SERVER['HTTP_HOST'] == 'phpunit_fake_http_host')) {
             $doc_usage = 'Usage: php index.php "http://www.site.com" "ctrl[/action]" ["id=1&query=string"] [--test-options]' . PHP_EOL;
             $doc_usage.= PHP_EOL;
-            $doc_usage.= 'Run all tests:' . PHP_EOL;
-            $doc_usage.= '    phpunit [--phpunit-options] index.php "http://www.site.com" ["id=1&query=string"] [--test-options]' . PHP_EOL;
-            $doc_usage.= 'Run one test:' . PHP_EOL;
-            $doc_usage.= '    phpunit [--phpunit-options] tmp/tests/someTest.php "http://www.site.com" ["id=1&query=string"] [--test-options]' . PHP_EOL;
+            $doc_usage.= 'Run tests:' . PHP_EOL;
+            $doc_usage.= '    phpunit [--phpunit-options] index.php "http://www.site.com" "<all|[testname]>" ["id=1&query=string"] [--test-options]' . PHP_EOL;
             $doc_usage.= PHP_EOL;
             $doc_usage.= 'Test options:' . PHP_EOL;
             $doc_usage.= '    --init-testdata' . PHP_EOL;
             $doc_usage.= '        copy production db to test db' . PHP_EOL;
-            $doc_usage.= '                    Database tests require [clementine_dbtests] database to be up and running' . PHP_EOL;
-            $doc_usage.= '                    Using --init-testdata will create [clementine_dbtests] with data from [clementine_db]' . PHP_EOL;
-            $doc_usage.= '                    Without --init-testdata, tests will use existing [clementine_dbtests] database anyway' . PHP_EOL;
+            $doc_usage.= '            Database tests require [clementine_dbtests] database to be up and running' . PHP_EOL;
+            $doc_usage.= '            Using --init-testdata will create [clementine_dbtests] with data from [clementine_db]' . PHP_EOL;
+            $doc_usage.= '            Without --init-testdata, tests will use existing [clementine_dbtests] database anyway' . PHP_EOL;
             $doc_usage.= '    --always-init-testdata' . PHP_EOL;
             $doc_usage.= '        Recreate [clementine_dbtests] everytime setUpTestDB is run (eg. in phpunit\'s setUpBeforeClass or setUp functions)' . PHP_EOL;
             $cliargs = $this->_getCliArgs($phpunit);
@@ -1184,8 +1182,10 @@ class Clementine
             Clementine::$register['clementine_cli_opts'] = $clemopts;
             $args = array_values($args);
             if ($phpunit) {
-                $runtests = 1;
-                if (!(isset($args[1]) && (stripos($args[1], 'http://') === 0 || stripos($args[1], 'https://') === 0))) {
+                if (!empty($args[0]) && realpath($args[0]) == __FILES_ROOT__ . '/index.php') {
+                    $this->_writeTmpTests();
+                }
+                if (!(isset($args[1]) && isset($args[2]) && (stripos($args[1], 'http://') === 0 || stripos($args[1], 'https://') === 0))) {
                     echo $doc_usage;
                     die();
                 }
@@ -1193,9 +1193,10 @@ class Clementine
                 define('__INVOCATION_METHOD__', 'CLI');
                 $insecure_server_http_host = preg_replace('@^https?://@i', '', $args[1]);
                 $insecure_server_http_host = preg_replace('@/.*@', '', $insecure_server_http_host);
-                // si appel en CLI, on reconstruit _GET a partir de args[2]
-                if (isset($args[2])) {
-                    $tmp_GET_pairs = explode('&', $args[2]);
+                $runtests = 1;
+                // si appel en CLI, on reconstruit _GET a partir de args[3]
+                if (isset($args[3])) {
+                    $tmp_GET_pairs = explode('&', $args[3]);
                     foreach ($tmp_GET_pairs as $str_pair) {
                         $pair = explode('=', $str_pair, 2);
                         if (isset($pair[1])) {
@@ -1462,11 +1463,8 @@ class Clementine
         Clementine::$config = $config;
         if ($runtests) {
             if (!empty($args[0]) && realpath($args[0]) == __FILES_ROOT__ . '/index.php') {
-                $this->_writeTmpTests();
-            }
-            if (!empty($args[0]) && realpath($args[0]) == __FILES_ROOT__ . '/index.php') {
                 $init_testdata = '';
-                if (isset($clemopts['--init-testdata'])) {
+                if (isset($clemopts['--init-testdata']) || isset($clemopts['--always-init-testdata'])) {
                     $init_testdata = '--init-testdata';
                     if (!isset($clemopts['--always-init-testdata'])) {
                         unset($clemopts['--init-testdata']);
@@ -1483,7 +1481,12 @@ class Clementine
                 }
                 $req = '';
                 if (isset($args[2])) {
-                    $req = escapeshellarg($args[2]);
+                    if ($args[2] == 'all' || in_array($args[2], Clementine::$_register['clementine_test_classes'])) {
+                        $req = $args[2];
+                    } else {
+                        $this->getHelper("debug")->testClassNotFound($args[2]);
+                    }
+                    $escaped_req = escapeshellarg($req);
                 }
                 $qsa = '';
                 if (isset($args[3])) {
@@ -1494,23 +1497,30 @@ class Clementine
                 $normal = "\033" . Clementine::$config['clementine_shell_colors']['normal'];
                 $phpunit_cli = $argv[0];
                 $exclude = '';
-                $passthru_params = ' -print0 | xargs -I\'{}\' -n 1 -0 --verbose ' . escapeshellarg($phpunit_cli) . ' ' . $escaped_cliopts . ' {} ' . escapeshellarg($args[1]) . ' ' . $escaped_clemopts . ' ' . $init_testdata . ' ' . $req . ' ' . $qsa . ' ';
+                $passthru_params = ' -print0 | xargs -I\'{}\' -n 1 -0 --verbose ' . escapeshellarg($phpunit_cli) . ' ' . $escaped_cliopts . ' {} ' . escapeshellarg($args[1]) . ' ' . $escaped_clemopts . ' ' . $escaped_req . ' ' . $qsa . ' ';
                 if ($init_testdata) {
-                    passthru('find ' . escapeshellarg(__FILES_ROOT__ . '/tmp/tests') . ' -name "dbTest.php" ' . $exclude . ' ' . $passthru_params);
+                    passthru('find ' . escapeshellarg(__FILES_ROOT__ . '/tmp/tests') . ' -name "dbTest.php" ' . $exclude . ' ' . $passthru_params . ' ' . $init_testdata);
                     $exclude = ' -not -name "dbTest.php" ';
                 }
-                passthru('find ' . escapeshellarg(__FILES_ROOT__ . '/tmp/tests') . ' -name "*Test.php" ' . $exclude . ' ' . $passthru_params);
+                if (!isset($clemopts['--always-init-testdata'])) {
+                    $init_testdata = '';
+                }
+                if ($req == 'all') {
+                    passthru('find ' . escapeshellarg(__FILES_ROOT__ . '/tmp/tests') . ' -name "*Test.php" ' . $exclude . ' ' . $passthru_params . ' ' . $init_testdata);
+                } else {
+                    passthru('find ' . escapeshellarg(__FILES_ROOT__ . '/tmp/tests') . ' -name "' . $req . 'Test.php" ' . $exclude . ' ' . $passthru_params . ' ' . $init_testdata);
+                }
                 die();
             }
         }
         return $early_errors;
     }
 
-    private function _getTestClasses()
+    protected function _getTestClasses()
     {
         $testClasses = array();
         $appDir = __FILES_ROOT__ . '/app';
-        $pattern = $appDir . '/{' . __CLEMENTINE_HOST__ . '/,}*/*/test/*Test.php';
+        $pattern = $appDir . '/{*/,}*/*/test/*Test.php';
         $testDirs = glob($pattern, GLOB_BRACE|GLOB_NOSORT);
         foreach ($testDirs as $testDir) {
             $testName = preg_replace('/.*\//', '', $testDir);
@@ -1553,7 +1563,7 @@ class Clementine
 
     private function _writeTmpTests()
     {
-        $testClasses = $this->_getTestClasses();
+        Clementine::$_register['clementine_test_classes'] = $this->_getTestClasses();
         $testsDir = __FILES_ROOT__ . '/tmp/tests';
         if (is_dir($testsDir)) {
             $this->_unlink_recursive($testsDir);
@@ -1561,7 +1571,7 @@ class Clementine
         if (!is_dir($testsDir)) {
             mkdir($testsDir);
         }
-        foreach ($testClasses as $testClass) {
+        foreach (Clementine::$_register['clementine_test_classes'] as $testClass) {
             $testFile = $testsDir . '/' . $testClass . 'Test.php';
             $testFileContent = '<?php
 require_once (dirname(__FILE__) . "/../../app/share/core/lib/ClementineTestCase.php");

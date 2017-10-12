@@ -330,6 +330,11 @@ class coreDebugHelper extends coreDebugHelper_Parent
         $this->trigger_error($msg, E_USER_ERROR, 2);
     }
 
+    public function testClassNotFound($test)
+    {
+        $msg = 'test class not found: ' . escapeshellarg($test);
+        $msg.= ', available test classes are: (all, ' . implode(', ', $this->_getTestClasses()) . ')';
+        $this->trigger_error($msg, E_USER_ERROR, 1);
+    }
 
 }
-?>
