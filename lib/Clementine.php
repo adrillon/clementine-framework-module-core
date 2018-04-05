@@ -2225,7 +2225,7 @@ HTML;
             // MIME BOUNDARY
             $mime_boundary = "---- " . md5(time());
             // MAIL HEADERS
-            $headers = 'From: "' . Clementine::$config['clementine_global']['email_exp'] . "\n";
+            $headers = 'From: "' . Clementine::$config['clementine_global']['email_exp'] . "\"\n";
             $headers.= "MIME-Version: 1.0\n";
             $headers.= "Content-Type: multipart/alternative; boundary=\"$mime_boundary\"\n";
             // TEXT EMAIL PART
