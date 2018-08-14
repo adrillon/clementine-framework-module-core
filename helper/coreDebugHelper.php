@@ -51,7 +51,7 @@ class coreDebugHelper extends coreDebugHelper_Parent
                     header('CLI' . ' 500 Internal Server Error', true);
                 }
             }
-            die();
+            Clementine::stop(50);
         }
         if (!isset($errtypes[$error_type])) {
             return false;
@@ -332,9 +332,20 @@ class coreDebugHelper extends coreDebugHelper_Parent
 
     public function testClassNotFound($test)
     {
-        $msg = 'test class not found: ' . escapeshellarg($test);
-        $msg.= ', available test classes are: (all, ' . implode(', ', $this->_getTestClasses()) . ')';
-        $this->trigger_error($msg, E_USER_ERROR, 1);
+        $testClasses = $this->_getClasses('test');
+        $availableTestClasses = $testClasses['common'] + $testClasses[__CLEMENTINE_HOST__];
+        foreach ($availableTestClasses as $key => &$name) {
+            $name = preg_replace('/Test/', '', $name);
+            $name = strtolower(preg_replace('/^[a-z0-9]*/', '', $name));
+        }
+        $msg = 'Test class not found: ' . escapeshellarg($test);
+        $msg.= ', available test classes are: (all, ' . implode(', ', $availableTestClasses) . ')';
+        $color = "\033" . Clementine::$config['clementine_shell_colors']['error'];
+        if (__DEBUGABLE__) {
+            echo $msg;
+            Clementine::log($msg, $color);
+        }
+        die(50);
     }
 
 }

@@ -1,4 +1,8 @@
 <?php
 require dirname(__FILE__) . '/Clementine.php';
-$Clementine = new Clementine();
-$Clementine->run();
+try {
+    $Clementine = new Clementine();
+    $Clementine->run();
+} catch(ClementineDieException $e) {
+    // do nothing instead of dieing for testability's sake
+}
