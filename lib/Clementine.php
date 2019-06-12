@@ -903,7 +903,7 @@ class Clementine
         $pos = array_search($ignores, $reverse_keys);
         foreach ($reverses as $module => $reverse) {
             $a_ignorer = 0;
-            if (count($ignores)) {
+            if ($ignores != null && count($ignores)) {
                 // on ignore $module s'il est avant (ou au même rang que) l'element $ignores dans les overrides
                 if ($pos !== false) {
                     $curpos = array_search($module, $reverse_keys);
